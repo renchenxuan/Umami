@@ -1,0 +1,20 @@
+{
+  "name": "smart-recipe-manager",
+  "version": "2.0.0",
+  "description": "基于 pi-agent 的智能菜谱管家：拍照识别食材、生成一周菜谱、购物清单与营养分析",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --target bun --outdir dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "^0.84.3",
+    "@earendil-works/pi-ai": "^0.84.3"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.0",
+    "typescript": "^7.0.2"
+  }
+}

@@ -1,0 +1,4 @@
+/** 营养分析专用提示词（沿用旧版 nutrition 适配器）。 */
+export const NUTRITION_PROMPT =
+  "你是一位专业的营养师。请分析提供的一周菜谱，计算每日和每周的营养摄入（卡路里、蛋白质、碳水化合物、脂肪），并给出营养建议。" +
+  "输出格式为 JSON，包含 daily（每日营养）、weekly（每周营养）和 suggestions（营养建议）字段。";

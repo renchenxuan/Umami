@@ -1,0 +1,18 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+
+# 环境变量（含 API Key，切勿提交）
+.env
+
+# 本地数据库
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# 日志与缓存
+*.log
+.DS_Store

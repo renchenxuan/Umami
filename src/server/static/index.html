@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>💪 健康管家</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="header">
+    <h1>💪 健康管家</h1>
+    <div id="pantry" class="pantry"></div>
+    <button id="settings-btn" class="settings-btn" title="设置中心">⚙️</button>
+  </header>
+
+  <main id="messages" class="messages"></main>
+
+  <footer class="footer">
+    <div id="preview" class="preview hidden">
+      <img id="preview-img" alt="图片预览" />
+      <button id="clear-img" class="clear-img" title="移除图片">✕</button>
+    </div>
+    <div class="composer">
+      <button id="attach-btn" class="attach-btn" title="上传照片识别食材">📷</button>
+      <input type="file" id="file-input" accept="image/*" hidden />
+      <textarea id="input" rows="1" placeholder="告诉我你想吃什么、怎么练，或上传冰箱照片…"></textarea>
+      <button id="send-btn" class="send-btn">发送</button>
+    </div>
+  </footer>
+
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>⚙️ 设置中心</h2>
+        <button id="settings-close" class="close-btn">✕</button>
+      </div>
+      <label class="field-label">模型提供商</label>
+      <select id="provider-select" class="field">
+        <option value="openai">OpenAI（GPT-4o）</option>
+        <option value="gemini">Gemini（Google）</option>
+        <option value="deepseek">DeepSeek</option>
+        <option value="moonshot">Moonshot（Kimi）</option>
+        <option value="minimax">MiniMax</option>
+        <option value="anthropic">Anthropic（Claude）</option>
+        <option value="qwen">通义千问（Qwen-VL）</option>
+        <option value="glm">智谱 GLM（GLM-4V）</option>
+        <option value="custom">自定义（OpenAI 兼容）</option>
+      </select>
+      <label class="field-label">API Key</label>
+      <input type="password" id="api-key-input" class="field" placeholder="请输入对应模型的 API Key" />
+      <div id="custom-fields" class="hidden">
+        <label class="field-label">Base URL</label>
+        <input type="text" id="base-url-input" class="field" placeholder="如 https://api.openai.com/v1" />
+        <label class="field-label">模型 ID</label>
+        <input type="text" id="model-id-input" class="field" placeholder="如 gpt-4o" />
+      </div>
+      <div class="settings-actions">
+        <button id="test-btn" class="secondary-btn">测试连接</button>
+        <button id="save-btn" class="primary-btn">保存</button>
+      </div>
+      <div id="settings-status" class="settings-status"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

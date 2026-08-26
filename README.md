@@ -1,149 +1,88 @@
-# 🍳 智能菜谱管家
+# 💪 健康管家
 
-基于 AI 的智能菜谱生成工具，支持拍照识别食材、生成一周菜谱、购物清单和营养分析。
+基于 [pi](https://github.com/earendil-works/pi)（`pi-ai` + `pi-agent-core`）构建的**对话式个人健康助手**。覆盖饮食营养、健身运动、身体数据追踪与日常习惯管理，用自然语言即可使用，全部数据持久化到本地 SQLite。
 
 ## 功能特性
 
-- 📸 **食材识别**：拍照或上传图片识别食材名称和数量
-- 📋 **菜谱生成**：基于现有食材生成一周菜谱（早、午、晚三餐）
-- 🛒 **购物清单**：自动生成缺失食材的购物清单
-- 📊 **营养分析**：每日/每周营养摄入可视化分析
-- ⭐ **收藏夹**：收藏喜欢的菜谱
-- 📋 **历史记录**：查看历史生成的菜谱
-- ⚙️ **多模型支持**：支持 OpenAI、Gemini、通义千问、智谱 GLM 等多种 AI 模型
+- 📸 **拍照识别食材**：上传冰箱照片，视觉模型识别并保存食材
+- 📋 **菜谱生成 / 🛒 购物清单 / 📊 营养分析**：饮食营养全套
+- 🏋️ **训练计划与动作指导**：按目标、器械、天数生成训练计划，讲解动作要领
+- 📏 **身体数据追踪**：记录体重/体脂，追踪减脂增肌进度
+- 🎯 **目标管理**：减脂、增肌、睡眠、饮水等目标设置与状态跟踪
+- 💧 **习惯打卡**：睡眠、饮水、心态等日常习惯记录
+- ⭐ **收藏 / 📋 历史 / ⚙️ 偏好**：对话中即可管理
+- 🔌 **多模型支持**：OpenAI / Gemini / DeepSeek / Moonshot(Kimi) / MiniMax / Anthropic / 通义千问 / 智谱 GLM，以及**自定义 OpenAI 兼容端点**（自填 Base URL + 模型 ID），网页内切换、填 Key、测试连接
 
 ## 技术栈
 
-- **前端**：Gradio 5.x
-- **后端**：Python 3.11+
-- **多模态模型**：OpenAI GPT-4o、Google Gemini、通义千问 Qwen-VL、智谱 GLM-4V
+- **运行时**：Bun（`bun:sqlite` + `Bun.serve`）
+- **Agent 框架**：`@earendil-works/pi-agent-core`
+- **统一 LLM 接口**：`@earendil-works/pi-ai`
 - **数据存储**：SQLite
-- **数据可视化**：Plotly
-- **配置管理**：pydantic-settings + .env
 
 ## 快速开始
 
 ### 1. 安装依赖
 
 ```bash
-# 使用 pip 安装
-pip install -r requirements.txt
-
-# 或使用 uv（推荐）
-uv install
+bun install
 ```
 
-### 2. 配置 API Key
-
-复制 `.env.example` 文件为 `.env`，并填写对应模型的 API Key：
+### 2. 启动
 
 ```bash
-cp .env.example .env
+bun run dev
 ```
 
-编辑 `.env` 文件：
+浏览器打开 <http://localhost:3000>。
 
-```
-# 模型配置
-MODEL_NAME=openai  # 可选: openai, gemini, qwen, glm
-OPENAI_API_KEY=your_openai_api_key
-GOOGLE_API_KEY=your_google_api_key
-DASHSCOPE_API_KEY=your_dashscope_api_key
-ZHIPUAI_API_KEY=your_zhipuai_api_key
+### 3. 配置模型（网页内完成）
 
-# 界面设置
-THEME=light
-LANGUAGE=zh
+点击右上角 **⚙️ 设置中心**：选择模型提供商 → 填写 API Key → 「测试连接」→ 「保存」。切换模型即时生效，不丢会话。
 
-# 数据存储
-DATABASE_URL=sqlite:///recipe_manager.db
-```
+选「自定义（OpenAI 兼容）」时，额外填写 **Base URL** 和 **模型 ID**，即可接入 Ollama / vLLM / LM Studio 或任意 OpenAI 兼容代理。
 
-### 3. 启动应用
+> 也可以复制 `.env.example` 为 `.env` 预填，界面里设置的 key 会覆盖 `.env`。key 存本地 SQLite，请勿提交 `*.db`。
 
-```bash
-python app.py
-```
+## 使用示例
 
-应用将在 `http://localhost:7860` 启动。
+**饮食**：「我冰箱里有鸡蛋和西红柿，给 2 个人做一顿晚餐」／（上传照片自动识别食材）／「分析一下这些菜的营养」
 
-## 使用指南
+**健身**：「给我制定一个 3 天的减脂训练计划，无器械」／「记录我今天慢跑 30 分钟」／「我最近的训练记录」
 
-### 1. 食材识别
+**身体**：「记录体重 70kg」／「我的体重变化」
 
-- 在「📸 食材识别」标签页上传食材图片
-- 点击「🔍 开始识别」按钮
-- 识别结果会显示在右侧，并自动保存到食材列表
-- 也可以手动添加食材
-
-### 2. 菜谱生成
-
-- 在「📋 菜谱生成」标签页设置用餐人数、天数、口味等偏好
-- 点击「🚀 生成一周菜谱」按钮
-- 生成结果会显示在下方
-- 可以点击「🛒 生成购物清单」和「📊 营养分析」查看相关信息
-
-### 3. 收藏夹和历史记录
-
-- 在「⭐ 收藏夹」标签页查看收藏的菜谱
-- 在「📋 历史记录」标签页查看历史生成的菜谱
-
-### 4. 设置中心
-
-- 在「⚙️ 设置中心」标签页选择模型并输入 API Key
-- 点击「🔑 测试连接」验证 API Key 是否有效
-- 可以切换主题和语言
+**目标与习惯**：「设置目标：减脂到 65kg」／「昨晚睡了 7 小时」／「喝水打卡」
 
 ## 项目结构
 
 ```
-smart-recipe-manager/
-├── app.py                    # Gradio 入口，UI 定义
-├── config.py                 # 配置管理
-├── requirements.txt          # 依赖清单
-├── .env.example              # 环境变量模板
-├── README.md                 # 使用说明
-│
-├── adapters/                 # 模型适配层
-│   ├── __init__.py
-│   ├── base.py               # 抽象基类
-│   ├── openai_adapter.py     # OpenAI 适配器
-│   ├── gemini_adapter.py     # Gemini 适配器
-│   ├── qwen_adapter.py       # 通义千问适配器
-│   └── glm_adapter.py        # 智谱 GLM 适配器
-│
-├── services/                 # 业务逻辑层
-│   ├── __init__.py
-│   ├── ingredient_service.py # 食材服务
-│   ├── recipe_service.py     # 菜谱服务
-│   ├── nutrition_service.py  # 营养服务
-│   └── history_service.py    # 历史记录服务
-│
-├── db/                       # 数据层
-│   ├── __init__.py
-│   └── database.py           # SQLite 数据库管理
-│
-├── static/                   # 静态资源
-│   └── custom.css            # 自定义主题样式
+├── package.json
+├── tsconfig.json
+├── .env.example
+└── src/
+    ├── index.ts              # 入口：装配并启动
+    ├── config.ts             # 静态配置（端口/路径/模型 ID）
+    ├── settings.ts           # 运行时设置（模型 + key，SQLite 持久化）
+    ├── models.ts             # 4 家模型 provider + 模型选择
+    ├── agent.ts              # Agent 组装
+    ├── system-prompt.ts      # 健康管家人设
+    ├── prompts/nutrition.ts  # 营养分析提示词
+    ├── db/database.ts        # SQLite 数据层（9 张表）
+    ├── tools/                # Agent 工具（食材/收藏/历史/偏好/营养/训练/身体/目标/习惯）
+    └── server/
+        ├── server.ts         # Bun.serve + SSE 流式 + 设置接口
+        └── static/           # 聊天前端 + 设置面板
 ```
 
-## 注意事项
+## 架构说明
 
-1. **API Key 安全**：请妥善保管您的 API Key，不要分享给他人
-2. **模型选择**：不同模型的能力和价格不同，建议根据实际需求选择
-3. **网络连接**：使用前确保网络连接正常，特别是访问国外 API 时
-4. **食材识别**：识别 accuracy 取决于图片质量和模型能力，建议在光线充足的环境下拍摄
-5. **营养分析**：营养数据为估算值，仅供参考
+应用是**一个对话 Agent + 一组工具**：
 
-## 扩展方向
+- **智能部分由 Agent 的 LLM 承担**：识别食材、生成菜谱/训练计划、给建议都发生在对话里；
+- **工具只做确定性副作用**：读写 SQLite、营养分析子调用；
+- **模型可运行时切换**：设置中心改模型即给 `agent.state.model` 赋新值，key 同步到 provider 解析。
 
-- 📱 微信小程序版
-- 🔄 多轮对话优化
-- 🌍 多语言菜谱支持
-- 📷 实时摄像头扫描
-- 🧊 食材保鲜期管理
-- 👨‍👩‍👧‍👦 家庭成员口味管理
-
-## 许可证
+## 许可
 
 MIT License

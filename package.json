@@ -1,5 +1,5 @@
 {
-  "name": "health-assistant",
+  "name": "umami",
   "version": "3.0.0",
   "description": "基于 pi-agent 的对话式个人健康管家：拍照识别食材、菜谱与营养分析、训练计划、身体数据、目标与习惯管理",
   "type": "module",

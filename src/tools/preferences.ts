@@ -9,6 +9,10 @@ const UpdatePreferencesSchema = Type.Object({
   allergies: Type.Optional(Type.String()),
   cuisine_style: Type.Optional(Type.String()),
   days: Type.Optional(Type.Integer()),
+  height_cm: Type.Optional(Type.Number()),
+  age: Type.Optional(Type.Integer()),
+  gender: Type.Optional(Type.String()),
+  activity_level: Type.Optional(Type.String()),
 });
 
 export function createPreferenceTools(db: RecipeDB): AgentTool<any>[] {
@@ -29,7 +33,7 @@ export function createPreferenceTools(db: RecipeDB): AgentTool<any>[] {
     {
       name: "update_preferences",
       label: "更新偏好",
-      description: "更新用户的口味、人数、忌口、菜系、天数等偏好。",
+      description: "更新用户的口味、人数、忌口、菜系、天数，以及身高(cm)、年龄、性别、活动水平等个人资料。",
       parameters: UpdatePreferencesSchema,
       execute: async (_id, params) => {
         const p = params as Static<typeof UpdatePreferencesSchema>;

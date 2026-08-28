@@ -1,51 +1,299 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>💪 健康管家</title>
+  <title>膳待家 - 你的膳食健康管家</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700&display=swap" />
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
-  <header class="header">
-    <h1>💪 健康管家</h1>
-    <div id="pantry" class="pantry"></div>
-    <button id="settings-btn" class="settings-btn" title="设置中心">⚙️</button>
-  </header>
+<body data-view="chat">
+  <div class="bg-aurora" aria-hidden="true"></div>
+  <div class="cursor-glow" aria-hidden="true"></div>
+  <div class="bg-decor" aria-hidden="true"></div>
+  <div class="app">
+    <aside class="sidebar">
+      <button id="new-conv-btn" class="new-conv-btn">＋ 新对话</button>
+      <div id="conversation-list" class="conversation-list"></div>
+    </aside>
+    <div class="main">
+      <header class="header">
+        <div class="brand">
+          <svg class="logo-mark" viewBox="0 0 48 48" aria-hidden="true">
+            <defs>
+              <linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#34d399"/><stop offset="1" stop-color="#059669"/></linearGradient>
+              <linearGradient id="logoBg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#064e3b"/><stop offset="1" stop-color="#022c22"/></linearGradient>
+            </defs>
+            <circle cx="24" cy="24" r="22" fill="url(#logoBg)"/>
+            <path d="M24 9 C15 16 11 25 12 32 C13 39 19 42 25 39 C21 33 22 22 24 9Z" fill="url(#logoGrad)"/>
+            <path d="M26 13 C30 10 36 12 38 18 C40 24 37 31 32 33 C28 35 26 28 26 13Z" fill="url(#logoGrad)" opacity=".85"/>
+            <path d="M24 16 L24 34" stroke="url(#logoGrad)" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <div class="brand-text">
+            <h1>膳待家</h1>
+            <span class="brand-sub">SHANDAIJIA · 膳食健康管家</span>
+          </div>
+        </div>
+        <nav class="nav" role="tablist">
+          <button id="tab-chat" class="nav-btn active" data-view="chat" role="tab" aria-selected="true" aria-controls="messages" tabindex="0">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span>对话</span>
+          </button>
+          <button id="tab-fridge" class="nav-btn" data-view="fridge" role="tab" aria-selected="false" aria-controls="fridge" tabindex="-1">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v18M4 12h16M6.3 6.3l11.4 11.4M17.7 6.3L6.3 17.7"/></svg>
+            <span>冰箱</span>
+          </button>
+          <button id="tab-fitness" class="nav-btn" data-view="fitness" role="tab" aria-selected="false" aria-controls="fitness" tabindex="-1">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 9h11v6h-11z"/></svg>
+            <span>健身</span>
+          </button>
+          <button id="tab-diet" class="nav-btn" data-view="diet" role="tab" aria-selected="false" aria-controls="diet" tabindex="-1">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3v7"/></svg>
+            <span>饮食</span>
+          </button>
+          <button id="tab-profile" class="nav-btn" data-view="profile" role="tab" aria-selected="false" aria-controls="profile" tabindex="-1">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>资料</span>
+          </button>
+          <button id="tab-board" class="nav-btn" data-view="board" role="tab" aria-selected="false" aria-controls="board" tabindex="-1">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+            <span>面板</span>
+          </button>
+        </nav>
+        <button id="settings-btn" class="settings-btn" title="设置中心">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+        <button id="skills-btn" class="skills-btn" title="技能中心">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+        </button>
+      </header>
 
-  <main id="messages" class="messages"></main>
-
-  <footer class="footer">
-    <div id="preview" class="preview hidden">
-      <img id="preview-img" alt="图片预览" />
-      <button id="clear-img" class="clear-img" title="移除图片">✕</button>
-    </div>
-    <div class="composer">
-      <button id="attach-btn" class="attach-btn" title="上传照片识别食材">📷</button>
-      <input type="file" id="file-input" accept="image/*" hidden />
-      <textarea id="input" rows="1" placeholder="告诉我你想吃什么、怎么练，或上传冰箱照片…"></textarea>
-      <button id="send-btn" class="send-btn">发送</button>
-    </div>
-  </footer>
-
-  <div id="settings-modal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>⚙️ 设置中心</h2>
-        <button id="settings-close" class="close-btn">✕</button>
+      <div id="app-status" class="app-status hidden" role="status" aria-live="polite"></div>
+      <div id="model-guidance" class="guidance-banner hidden" role="alert">
+        <span class="guidance-icon">🔑</span>
+        <div class="guidance-text">
+          <strong>先完成一步设置</strong>
+          <span>在生成食谱、分析与推荐前，请先在「设置」中配置模型 API Key。</span>
+        </div>
+        <button id="guidance-settings-btn" class="guidance-btn" type="button">去配置</button>
+        <button id="guidance-close" class="guidance-close" type="button" aria-label="关闭提示" title="关闭提示">✕</button>
       </div>
+      <main id="messages" class="messages" role="tabpanel" aria-labelledby="tab-chat"></main>
+
+      <section id="fridge" class="view hidden" role="tabpanel" aria-labelledby="tab-fridge">
+        <div class="fridge">
+          <div class="fridge-panel">
+            <div class="fridge-panel-head">
+              <h3>食材大全</h3>
+              <input id="food-search" class="food-search" type="text" placeholder="搜索食材，如「番茄」「牛肉」…" />
+              <div id="food-categories" class="food-categories"></div>
+            </div>
+            <div id="food-grid" class="food-grid"></div>
+          </div>
+
+          <div class="fridge-real-wrap">
+            <div class="fridge-real-head">
+              <div class="fridge-real-title">
+                <h3>我的冰箱 <span id="fridge-count" class="fridge-count"></span></h3>
+                <p class="fridge-hint">点左侧食材加入冰箱；AI 会优先用冰箱里的食材推荐菜谱。</p>
+              </div>
+              <div class="fridge-temp-controls">
+                <label class="temp-field">冷藏
+                  <input id="fridge-temp" class="temp-input" type="number" step="1" />
+                  <span class="temp-unit">°C</span>
+                </label>
+                <label class="temp-field">冷冻
+                  <input id="freezer-temp" class="temp-input" type="number" step="1" />
+                  <span class="temp-unit">°C</span>
+                </label>
+                <button id="fridge-ai-btn" class="fridge-ai-btn" title="让 AI 分析冰箱保鲜状态">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>
+                  <span>AI 检测</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="fridge-body">
+              <div class="fridge-zone" data-zone="freezer">
+                <div class="fridge-zone-head" data-zone="freezer">
+                  <span class="fridge-zone-name">冷冻层</span>
+                  <span class="fridge-zone-temp" id="freezer-temp-label"></span>
+                </div>
+                <div class="fridge-zone-items" id="fridge-freezer-items"></div>
+              </div>
+              <div class="fridge-zone" data-zone="fridge">
+                <div class="fridge-zone-head" data-zone="fridge">
+                  <span class="fridge-zone-name">冷藏层</span>
+                  <span class="fridge-zone-temp" id="fridge-temp-label"></span>
+                </div>
+                <div class="fridge-zone-items" id="fridge-items"></div>
+              </div>
+            </div>
+
+            <div id="fridge-ai-result" class="fridge-ai-result hidden" role="status" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="fitness" class="view hidden" role="tabpanel" aria-labelledby="tab-fitness">
+        <div class="page">
+          <h2>健身</h2>
+          <p class="page-desc">记录训练计划与每日时长，AI 会据此分析你的运动情况。</p>
+          <div id="workout-presets" class="workout-presets" role="group" aria-label="常用健身类型"></div>
+          <form class="form-row" id="workout-form">
+            <input id="w-type" class="field" placeholder="类型，如 慢跑（也可点上方图标快速选择）" />
+            <input id="w-duration" class="field" type="number" placeholder="时长（分钟）" />
+            <input id="w-detail" class="field" placeholder="详情（可选）" />
+            <input id="w-date" class="field" type="date" />
+            <button id="w-add" class="primary-btn" type="submit">记录</button>
+          </form>
+          <div id="workout-summary" class="summary"></div>
+          <div id="workout-list" class="list"></div>
+        </div>
+      </section>
+
+      <section id="diet" class="view hidden" role="tabpanel" aria-labelledby="tab-diet">
+        <div class="page">
+          <h2>饮食</h2>
+          <p class="page-desc">记录每天吃了什么，AI 会据此给出每日/每周健康分析。</p>
+          <button id="diet-quick-btn" class="diet-quick-btn" type="button" title="快速记一笔">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            <span>记一笔</span>
+          </button>
+          <div id="diet-quick-pop" class="diet-quick-pop hidden">
+            <select id="dq-meal" class="field">
+              <option>早餐</option><option>午餐</option><option>晚餐</option><option>加餐</option>
+            </select>
+            <input id="dq-foods" class="field" placeholder="吃了什么，用逗号分隔，如 鸡蛋,牛奶" />
+            <button id="dq-submit" class="primary-btn" type="button">保存</button>
+            <button id="dq-cancel" class="secondary-btn" type="button">取消</button>
+          </div>
+          <form class="form-row" id="diet-form">
+            <select id="d-meal" class="field">
+              <option>早餐</option><option>午餐</option><option>晚餐</option><option>加餐</option>
+            </select>
+            <input id="d-foods" class="field" placeholder="吃了什么，用逗号分隔，如 鸡蛋,牛奶" />
+            <input id="d-note" class="field" placeholder="备注（可选）" />
+            <input id="d-date" class="field" type="date" />
+            <button id="d-add" class="primary-btn" type="submit">记录</button>
+          </form>
+          <div id="diet-list" class="list"></div>
+        </div>
+      </section>
+
+      <section id="profile" class="view hidden" role="tabpanel" aria-labelledby="tab-profile">
+        <div class="page">
+          <h2>个人资料</h2>
+          <p class="page-desc">记录你的身体状况与偏好，AI 会据此生成个性化推荐与分析。</p>
+          <form id="profile-form">
+          <div class="form-grid">
+            <label class="form-field"><span>身高（cm）</span><input id="p-height" class="field" type="number" placeholder="如 175" /></label>
+            <label class="form-field"><span>年龄</span><input id="p-age" class="field" type="number" placeholder="如 28" /></label>
+            <label class="form-field"><span>性别</span><select id="p-gender" class="field"><option value="">未设置</option><option>男</option><option>女</option><option>其他</option></select></label>
+            <label class="form-field"><span>活动水平</span><select id="p-activity" class="field"><option>久坐</option><option>轻度</option><option>中度</option><option>高强度</option></select></label>
+            <label class="form-field"><span>口味</span><input id="p-taste" class="field" placeholder="如 清淡" /></label>
+            <label class="form-field"><span>菜系</span><input id="p-cuisine" class="field" placeholder="如 中餐" /></label>
+            <label class="form-field"><span>忌口</span><input id="p-allergies" class="field" placeholder="如 花生" /></label>
+            <label class="form-field"><span>用餐人数</span><input id="p-people" class="field" type="number" placeholder="如 2" /></label>
+            <label class="form-field"><span>默认天数</span><input id="p-days" class="field" type="number" placeholder="如 7" /></label>
+          </div>
+          <div class="form-actions">
+            <button id="profile-save" class="primary-btn" type="submit">保存资料</button>
+            <span id="profile-status" class="settings-status"></span>
+          </div>
+          </form>
+          <div class="profile-section">
+            <h3>每日记录</h3>
+            <p class="page-desc">记录每天的体重与饮食，AI 会结合这些数据做健康分析。</p>
+            <form class="form-row" id="weight-form">
+              <input id="p-weight" class="field" type="number" step="0.1" min="20" max="500" placeholder="今天体重(kg)" />
+              <input id="p-bodyfat" class="field" type="number" step="0.1" min="3" max="60" placeholder="体脂%(可选)" />
+              <button id="p-weight-add" class="primary-btn" type="submit">记录体重</button>
+            </form>
+            <div id="profile-daily" class="list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="board" class="board hidden" role="tabpanel" aria-labelledby="tab-board">
+        <div class="board-toolbar">
+          <div class="board-toolbar-title">
+            <h2>健康面板</h2>
+            <p>食材、训练、目标、习惯，拖拽整理你的健康生活</p>
+          </div>
+          <div class="board-toolbar-actions">
+            <button id="add-card-btn" class="board-action-btn">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+              <span>添加</span>
+            </button>
+            <button id="analysis-btn" class="board-action-btn">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="7"/><rect x="12" y="7" width="3" height="11"/><rect x="17" y="13" width="3" height="5"/></svg>
+              <span>健康分析</span>
+            </button>
+            <button id="restore-board-btn" class="board-action-btn hidden">显示已隐藏卡片</button>
+            <button id="recommend-btn" class="board-action-btn primary">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+              <span>个性化推荐</span>
+            </button>
+          </div>
+        </div>
+        <div id="board-canvas" class="board-canvas"></div>
+      </section>
+
+      <footer id="footer" class="footer">
+        <div id="preview" class="preview hidden">
+          <img id="preview-img" alt="图片预览" />
+          <button id="clear-img" class="clear-img" title="移除图片" aria-label="移除已选择的图片">✕</button>
+        </div>
+        <div class="composer">
+          <button id="attach-btn" class="attach-btn" title="上传照片识别食材">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <path d="M21 15l-5-5L5 21"></path>
+            </svg>
+          </button>
+          <input type="file" id="file-input" accept="image/*" hidden />
+          <textarea id="input" rows="1" placeholder="告诉我你想吃什么、怎么练，或上传冰箱照片…"></textarea>
+          <button id="send-btn" class="send-btn">发送</button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="modal-content" tabindex="-1">
+      <div class="modal-header">
+        <h2 id="settings-title">设置中心</h2>
+        <button id="settings-close" class="close-btn" aria-label="关闭设置中心">✕</button>
+      </div>
+      <label class="field-label">界面主题</label>
+      <select id="theme-select" class="field">
+        <option value="dark">深色</option>
+        <option value="light">浅色</option>
+      </select>
       <label class="field-label">模型提供商</label>
       <select id="provider-select" class="field">
-        <option value="openai">OpenAI（GPT-4o）</option>
-        <option value="gemini">Gemini（Google）</option>
+        <option value="openai">OpenAI</option>
+        <option value="gemini">Gemini</option>
         <option value="deepseek">DeepSeek</option>
-        <option value="moonshot">Moonshot（Kimi）</option>
+        <option value="moonshot">Moonshot</option>
         <option value="minimax">MiniMax</option>
-        <option value="anthropic">Anthropic（Claude）</option>
-        <option value="qwen">通义千问（Qwen-VL）</option>
-        <option value="glm">智谱 GLM（GLM-4V）</option>
+        <option value="anthropic">Anthropic</option>
+        <option value="qwen">通义千问</option>
+        <option value="glm">智谱 GLM</option>
         <option value="custom">自定义（OpenAI 兼容）</option>
       </select>
+      <div id="model-field">
+        <label class="field-label">模型</label>
+        <select id="model-select" class="field"></select>
+      </div>
       <label class="field-label">API Key</label>
       <input type="password" id="api-key-input" class="field" placeholder="请输入对应模型的 API Key" />
       <div id="custom-fields" class="hidden">
@@ -62,6 +310,196 @@
     </div>
   </div>
 
+  <div id="add-card-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="add-card-title">
+    <div class="modal-content" tabindex="-1">
+      <div class="modal-header">
+        <h2 id="add-card-title">添加卡片</h2>
+        <button id="add-card-close" class="close-btn" aria-label="关闭添加卡片">✕</button>
+      </div>
+      <div id="add-card-types" class="add-types">
+        <button class="add-type active" data-type="workouts">健身</button>
+        <button class="add-type" data-type="goals">目标</button>
+        <button class="add-type" data-type="habits">习惯</button>
+      </div>
+      <div id="add-card-fields" class="add-fields"></div>
+      <div class="settings-actions">
+        <button id="add-card-submit" class="primary-btn">添加</button>
+      </div>
+      <div id="add-card-status" class="settings-status"></div>
+    </div>
+  </div>
+
+  <div id="recommend-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="recommend-title">
+    <div class="modal-content recommend-content" tabindex="-1">
+      <div class="modal-header">
+        <h2 id="recommend-title">个性化推荐</h2>
+        <button id="recommend-close" class="close-btn" aria-label="关闭个性化推荐">✕</button>
+      </div>
+      <div id="recommend-consent" class="recommend-consent">
+        <p><strong>发送前请确认数据流向</strong></p>
+        <p>生成推荐时，会把近期身体指标、健康目标、饮食偏好与过敏信息发送给当前模型提供商（<span id="recommend-provider">正在读取…</span>）。只发送完成本次推荐所需的数据。</p>
+        <p>结果属于通用健康信息和营养估算，不提供医疗诊断或治疗建议；如有症状、用药或伤病问题，请咨询合格专业人员。</p>
+        <label class="recommend-consent-check"><input id="recommend-consent-check" type="checkbox" /> 我已了解并同意本次发送</label>
+        <button id="recommend-generate" class="primary-btn" disabled>同意并生成推荐</button>
+      </div>
+      <div id="recommend-loading" class="recommend-loading hidden" role="status" aria-live="polite">
+        <span class="spinner"></span>
+        <p>正在根据你的身体状况与偏好生成推荐…</p>
+      </div>
+      <div id="recommend-result" class="recommend-result hidden"></div>
+    </div>
+  </div>
+
+  <div id="analysis-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="analysis-title">
+    <div class="modal-content analysis-content">
+      <div class="modal-header">
+        <h2 id="analysis-title">健康分析</h2>
+        <button id="analysis-close" class="close-btn">✕</button>
+      </div>
+      <div id="analysis-tabs" class="analysis-tabs">
+        <button class="analysis-tab active" data-period="daily">今日分析</button>
+        <button class="analysis-tab" data-period="weekly">本周分析</button>
+      </div>
+      <div id="analysis-consent" class="recommend-consent">
+        <p>生成分析时，会把近期的饮食、运动、身体数据与偏好发送给当前模型提供商（<span id="analysis-provider">正在读取…</span>）。只发送完成本次分析所需的数据。</p>
+        <label class="recommend-consent-check"><input id="analysis-consent-check" type="checkbox" /> 我已了解并同意本次发送</label>
+        <button id="analysis-generate" class="primary-btn" disabled>同意并生成分析</button>
+      </div>
+      <div id="analysis-loading" class="recommend-loading hidden" role="status" aria-live="polite">
+        <span class="spinner"></span>
+        <p>正在根据你的饮食、运动与身体数据生成分析…</p>
+      </div>
+      <div id="analysis-result" class="analysis-text hidden"></div>
+    </div>
+  </div>
+
+  <div id="food-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="food-modal-title">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="food-modal-title">加入冰箱</h2>
+        <button id="food-modal-close" class="close-btn">✕</button>
+      </div>
+      <div class="form-row">
+        <input id="food-qty" class="field" type="number" min="0" placeholder="数量（可留空）" />
+        <select id="food-unit" class="field"></select>
+      </div>
+      <div class="zone-row" id="food-zone-row" role="radiogroup" aria-label="存放分区">
+        <button type="button" class="zone-btn active" data-zone="fridge">❄️ 冷藏层</button>
+        <button type="button" class="zone-btn" data-zone="freezer">🧊 冷冻层</button>
+      </div>
+      <div class="settings-actions">
+        <button id="food-add-btn" class="primary-btn">加入冰箱</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="zone-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="zone-modal-title">
+    <div class="modal-content zone-modal-content">
+      <div class="modal-header">
+        <h2 id="zone-modal-title">分区管理</h2>
+        <button id="zone-modal-close" class="close-btn">✕</button>
+      </div>
+      <p id="zone-modal-sub" class="zone-modal-sub"></p>
+      <div id="zone-modal-items" class="zone-modal-items"></div>
+      <h3 class="zone-modal-subhead">添加食材到本层</h3>
+      <input id="zone-food-search" class="field" type="text" placeholder="搜索食材名称…" />
+      <div id="zone-modal-foods" class="zone-modal-foods"></div>
+    </div>
+  </div>
+
+  <div id="ingredient-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="ingredient-modal-title">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="ingredient-modal-title">食材详情</h2>
+        <button id="ingredient-modal-close" class="close-btn">✕</button>
+      </div>
+      <div class="ingredient-detail">
+        <img id="ingredient-img" class="ingredient-img" alt="" />
+        <div class="ingredient-info">
+          <div class="ingredient-name-row">
+            <span id="ingredient-name" class="ingredient-name"></span>
+            <span id="ingredient-badge" class="fridge-badge fresh"></span>
+          </div>
+          <dl class="ingredient-facts">
+            <div><dt>分类</dt><dd id="ingredient-category"></dd></div>
+            <div><dt>分区</dt><dd id="ingredient-zone"></dd></div>
+            <div><dt>数量</dt><dd id="ingredient-qty"></dd></div>
+            <div><dt>加入时间</dt><dd id="ingredient-added"></dd></div>
+            <div><dt>已存放</dt><dd id="ingredient-days"></dd></div>
+            <div><dt>建议</dt><dd id="ingredient-life"></dd></div>
+          </dl>
+        </div>
+      </div>
+      <label class="note-label" for="ingredient-note">备注</label>
+      <textarea id="ingredient-note" class="field" rows="3" maxlength="500" placeholder="如：已开封、周末买、给健身餐用…"></textarea>
+      <div class="ingredient-actions">
+        <button id="ingredient-move-btn" class="secondary-btn" type="button">移到另一层</button>
+        <button id="ingredient-del-btn" class="secondary-btn danger" type="button">移出冰箱</button>
+        <button id="ingredient-save-btn" class="primary-btn" type="button">保存备注</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="skills-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="skills-title">
+    <div class="modal-content" tabindex="-1">
+      <div class="modal-header">
+        <h2 id="skills-title">技能中心</h2>
+        <button id="skills-close" class="close-btn" aria-label="关闭技能中心">✕</button>
+      </div>
+      <p class="skills-desc">选择启用的技能，AI 将据此调整回答方式与专业深度。</p>
+      <div id="skills-list" class="skills-list"></div>
+      <div id="skills-status" class="settings-status"></div>
+    </div>
+  </div>
+
+  <div id="favorites-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="favorites-title">
+    <div class="modal-content favorites-content" tabindex="-1">
+      <div class="modal-header">
+        <h2 id="favorites-title">收藏与菜谱历史</h2>
+        <button id="favorites-close" class="close-btn" aria-label="关闭">✕</button>
+      </div>
+      <div class="fh-tabs">
+        <button class="fh-tab active" data-tab="favorites" type="button">我的收藏</button>
+        <button class="fh-tab" data-tab="history" type="button">菜谱历史</button>
+      </div>
+      <div class="fh-body">
+        <div class="fh-list" id="fh-list" aria-live="polite"></div>
+        <div class="fh-detail" id="fh-detail">
+          <div class="fh-empty">从左侧选择一条查看详情</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="goals-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="goals-title">
+    <div class="modal-content" tabindex="-1">
+      <div class="modal-header">
+        <h2 id="goals-title">目标管理</h2>
+        <button id="goals-close" class="close-btn" aria-label="关闭">✕</button>
+      </div>
+      <p class="page-desc">查看与调整你的健康目标。想新增目标？点下方按钮或直接告诉 AI「帮我设定一个每周跑步 3 次的目标」。</p>
+      <div id="goals-list" class="manage-list"></div>
+      <div class="settings-actions">
+        <button id="goals-add" class="secondary-btn" type="button">新增目标</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="habits-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="habits-title">
+    <div class="modal-content" tabindex="-1">
+      <div class="modal-header">
+        <h2 id="habits-title">习惯管理</h2>
+        <button id="habits-close" class="close-btn" aria-label="关闭">✕</button>
+      </div>
+      <p class="page-desc">查看与调整你的习惯记录。</p>
+      <div id="habits-list" class="manage-list"></div>
+      <div class="settings-actions">
+        <button id="habits-add" class="secondary-btn" type="button">新增习惯</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

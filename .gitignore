@@ -15,4 +15,19 @@ dist/
 
 # 日志与缓存
 *.log
+*.err
+*.err*
+*.out
+*.pid
 .DS_Store
+
+# 本地调试产物（截图、脚本输出）
+debug-*.png
+screenshot-*.png
+screenshot-script.*
+screenshot-bun.ts
+verify-*.png
+
+# 编辑器/工具本地数据
+.codebuddy/
+.workbuddy/

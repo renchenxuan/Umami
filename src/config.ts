@@ -41,6 +41,8 @@ export interface AppConfig {
   // 自定义 OpenAI 兼容端点
   customBaseUrl: string;
   customModel: string;
+  // pi-ai 当前无法绑定已校验 IP 或逐跳检查重定向；自定义端点必须显式承担 SSRF 风险。
+  allowUnsafeCustomEndpoints: boolean;
 }
 
 const modelName = (process.env.MODEL_NAME ?? "openai") as ModelName;
@@ -68,4 +70,9 @@ export const config: AppConfig = {
   glmModel: process.env.GLM_MODEL ?? "glm-4v-plus",
   customBaseUrl: process.env.CUSTOM_BASE_URL ?? "",
   customModel: process.env.CUSTOM_MODEL ?? "",
+  allowUnsafeCustomEndpoints: process.env.ALLOW_UNSAFE_CUSTOM_ENDPOINTS === "true",
 };
+
+export function unsafeCustomEndpointsEnabled(): boolean {
+  return process.env.ALLOW_UNSAFE_CUSTOM_ENDPOINTS === "true";
+}

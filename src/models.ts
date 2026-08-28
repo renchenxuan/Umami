@@ -11,7 +11,7 @@ import { moonshotaiProvider } from "@earendil-works/pi-ai/providers/moonshotai";
 import { minimaxProvider } from "@earendil-works/pi-ai/providers/minimax";
 import { anthropicProvider } from "@earendil-works/pi-ai/providers/anthropic";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
-import { config, type ModelName } from "./config";
+import { config, unsafeCustomEndpointsEnabled, type ModelName } from "./config";
 import { ALL_MODELS, type SettingsStore } from "./settings";
 
 const QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
@@ -63,7 +63,7 @@ export function registerCustomProvider(
 }
 
 /** 构建包含全部 provider 的 Models 集合。 */
-export function buildModels(settings: SettingsStore) {
+export function buildModels(settings: SettingsStore, validatedCustomBaseUrl: string | null = settings.get("custom_base_url"), allowCustom=unsafeCustomEndpointsEnabled()) {
   const models = createModels();
 
   // 内置 provider（pi-ai 自带目录）
@@ -81,7 +81,13 @@ export function buildModels(settings: SettingsStore) {
       name: "通义千问",
       baseUrl: QWEN_BASE_URL,
       auth: { apiKey: envApiKeyAuth("DashScope API Key", ["DASHSCOPE_API_KEY"]) },
-      models: [openAICompatModel(config.qwenModel, "Qwen-VL", "qwen", QWEN_BASE_URL)],
+      models: [
+        openAICompatModel("qwen-vl-plus", "Qwen VL Plus", "qwen", QWEN_BASE_URL),
+        openAICompatModel("qwen-vl-max", "Qwen VL Max", "qwen", QWEN_BASE_URL),
+        openAICompatModel("qwen-max", "Qwen Max", "qwen", QWEN_BASE_URL),
+        openAICompatModel("qwen-plus", "Qwen Plus", "qwen", QWEN_BASE_URL),
+        openAICompatModel("qwen-turbo", "Qwen Turbo", "qwen", QWEN_BASE_URL),
+      ],
       api: openAICompletionsApi(),
     }),
   );
@@ -93,15 +99,26 @@ export function buildModels(settings: SettingsStore) {
       name: "智谱 GLM",
       baseUrl: GLM_BASE_URL,
       auth: { apiKey: envApiKeyAuth("智谱 API Key", ["ZHIPUAI_API_KEY"]) },
-      models: [openAICompatModel(config.glmModel, "GLM-4V", "glm", GLM_BASE_URL)],
+      models: [
+        openAICompatModel("glm-4v-plus", "GLM-4V Plus", "glm", GLM_BASE_URL),
+        openAICompatModel("glm-4v-flash", "GLM-4V Flash", "glm", GLM_BASE_URL),
+        openAICompatModel("glm-4-plus", "GLM-4 Plus", "glm", GLM_BASE_URL),
+        openAICompatModel("glm-4-flash", "GLM-4 Flash", "glm", GLM_BASE_URL),
+        openAICompatModel("glm-4-air", "GLM-4 Air", "glm", GLM_BASE_URL),
+      ],
       api: openAICompletionsApi(),
     }),
   );
 
   // 自定义（用户填 baseUrl + 模型 ID）
-  registerCustomProvider(models, settings.get("custom_base_url"), settings.get("custom_model"));
+  if (allowCustom && validatedCustomBaseUrl !== null) registerCustomProvider(models, validatedCustomBaseUrl, settings.get("custom_model"));
 
   return models;
+}
+
+export function buildTemporaryCustomModels(baseUrl:string,modelId:string){
+  const models=createModels();registerCustomProvider(models,baseUrl,modelId);
+  return{models,model:models.getModel("custom",modelId)!};
 }
 
 export type ModelsCollection = ReturnType<typeof buildModels>;
@@ -117,7 +134,7 @@ const BUILTIN_MAPPING: Record<Exclude<ModelName, "custom">, [string, string]> = 
   glm: ["glm", config.glmModel],
 };
 
-/** 按模型名查模型（不校验 key）。 */
+/** 按模型名查模型（不校验 key）。优先使用用户在设置中心选择的模型覆盖，否则用默认。 */
 export function getModelByName(
   models: ModelsCollection,
   settings: SettingsStore,
@@ -131,12 +148,22 @@ export function getModelByName(
     }
     return model;
   }
-  const [provider, id] = BUILTIN_MAPPING[name];
+  const [provider, defaultId] = BUILTIN_MAPPING[name];
+  const id = settings.getModelOverride(name) || defaultId;
   const model = models.getModel(provider, id);
   if (!model) {
     throw new Error(`未找到模型 ${provider}/${id}，请检查模型配置`);
   }
   return model;
+}
+
+/** 列出各 provider 当前可用的模型，供设置中心做模型选择。 */
+export function listModelCatalog(models: ModelsCollection): Record<ModelName, { id: string; name: string }[]> {
+  const result = {} as Record<ModelName, { id: string; name: string }[]>;
+  for (const [name, [provider]] of Object.entries(BUILTIN_MAPPING)) {
+    result[name as ModelName] = models.getModels(provider).map((m) => ({ id: m.id, name: m.name || m.id }));
+  }
+  return result;
 }
 
 /** 启动时打印各 provider 是否已配置。 */

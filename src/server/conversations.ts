@@ -4,7 +4,7 @@ import type { RecipeDB } from "../db/database";
 import type { SettingsStore } from "../settings";
 import type { ModelsCollection } from "../models";
 import { getModelByName } from "../models";
-import type { SSEEvent } from "../api-types";
+import type { SSEEvent, StreamUsage } from "../api-types";
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_BYTES, readJson } from "./api";
 import { safeProviderMessage } from "./errors";
 import { restoreAgentMessages } from "../agent";
@@ -134,6 +134,7 @@ export class ConversationAgentManager {
           try {
             const persisted = this.db.getMessages(conversationId, 40);
             runtime.agent.state.messages = restoreAgentMessages(persisted, snapshot.model);
+            runtime.agent.state.thinkingLevel = this.settings.getThinkingLevel();
             const userMessageId = this.db.addMessage(conversationId, "user", text || "[图片]", imageBase64 ? { image: { mimeType, bytes: Math.ceil(imageBase64.length * 3 / 4) } } : {});
             writer({ type: "start", conversationId, messageId: userMessageId });
             await runtime.agent.prompt(text, images);
@@ -142,8 +143,15 @@ export class ConversationAgentManager {
             if (error) { writer({ type: "error", code: "MODEL_ERROR", message: safeProviderMessage(error, this.settings.getSecretValues()) }); return; }
             const assistant = [...runtime.agent.state.messages].reverse().find((message) => message.role === "assistant");
             const assistantText = extractText(assistant).trim();
-            const assistantMessageId = assistantText ? this.db.addMessage(conversationId, "assistant", assistantText, { model: `${snapshot.model.provider}/${snapshot.model.id}` }) : undefined;
-            writer({ type: "done", messageId: assistantMessageId });
+            // token 用量随消息元数据落库（复用现有 JSON 列），并随 done 事件回传前端展示。
+            const usage = assistant?.role === "assistant" ? assistant.usage : undefined;
+            const streamUsage: StreamUsage | undefined = usage && usage.totalTokens
+              ? { input: usage.input, output: usage.output, cacheRead: usage.cacheRead, totalTokens: usage.totalTokens, cost: usage.cost?.total ?? 0 }
+              : undefined;
+            const assistantMessageId = assistantText
+              ? this.db.addMessage(conversationId, "assistant", assistantText, { model: `${snapshot.model.provider}/${snapshot.model.id}`, usage: streamUsage ?? null })
+              : undefined;
+            writer({ type: "done", messageId: assistantMessageId, usage: streamUsage });
           } catch (error) {
             if (!cancelled) writer({ type: "error", code: "AGENT_ERROR", message: safeProviderMessage(error, this.settings.getSecretValues()) });
           } finally {

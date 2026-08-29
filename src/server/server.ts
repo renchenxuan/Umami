@@ -2,7 +2,7 @@ import type { Agent } from "@earendil-works/pi-agent-core";
 import type { Model, TextContent } from "@earendil-works/pi-ai";
 import { config, unsafeCustomEndpointsEnabled, type ModelName } from "../config";
 import type { RecipeDB } from "../db/database";
-import { ALL_MODELS, type SettingsStore } from "../settings";
+import { ALL_MODELS, THINKING_LEVELS, type SettingsStore } from "../settings";
 import { buildTemporaryCustomModels, getModelByName, listModelCatalog, registerCustomProvider, type ModelsCollection } from "../models";
 import { handleV1, MAX_JSON_BYTES, validateCustomBaseUrl } from "./api";
 import { ConversationAgentManager, type ConversationAgentFactory } from "./conversations";
@@ -141,7 +141,7 @@ export function startServer(
 
       // 设置：保存（模型名 + 当前 provider 的 key + 自定义端点）
       if (req.method === "PUT" && (url.pathname === "/api/settings" || url.pathname === "/api/v1/settings/model")) {
-        let body: { modelName?: string; apiKey?: string; baseUrl?: string; modelId?: string; uiTheme?: string };
+        let body: { modelName?: string; apiKey?: string; baseUrl?: string; modelId?: string; uiTheme?: string; thinkingLevel?: string };
         try {
           body = await parseJson<typeof body>(req);
         } catch (e) {
@@ -166,6 +166,7 @@ export function startServer(
           if (name !== "custom" && body.modelId?.trim()) settings.setModelOverride(name, body.modelId.trim());
           if (body.apiKey?.trim()) settings.setKey(name, body.apiKey.trim());
           if (body.uiTheme && ["light", "dark", "aurora"].includes(body.uiTheme)) settings.setUiTheme(body.uiTheme);
+          if (body.thinkingLevel && (THINKING_LEVELS as readonly string[]).includes(body.thinkingLevel)) settings.setThinkingLevel(body.thinkingLevel);
           const model = getModelByName(models, settings, name);
           if (!settings.getKey(name)) {
             return settingsResponse(url.pathname,{ ok: false, message: `模型 "${name}" 缺少 API Key，请在设置中心填写对应 key` },422);

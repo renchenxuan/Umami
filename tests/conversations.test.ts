@@ -34,7 +34,7 @@ const assistantMessage = (content: string): AgentMessage => ({
   api: model.api,
   provider: model.provider,
   model: model.id,
-  usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+  usage: { input: 123, output: 45, cacheRead: 0, cacheWrite: 0, totalTokens: 168, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
   stopReason: "stop",
   timestamp: Date.now(),
 } as AgentMessage);
@@ -82,16 +82,24 @@ function setup(db = new RecipeDB(":memory:")) {
 }
 
 describe("conversation agent streaming", () => {
-  test("Agent-facing write tools create proposals without executing their original mutation", async () => {
+  test("confirm-tier write tools create proposals without executing; auto-tier writes directly", async () => {
     const db = new RecipeDB(":memory:");
     try {
       const conversationId = db.createConversation("工具确认");
       const tools = createAllTools(db, {} as any, () => model, { conversationId });
-      const save = tools.find(tool => tool.name === "save_ingredients")!;
-      const result = await save.execute("call", { ingredients: [{ name: "土豆", quantity: "2个" }] }, undefined);
-      expect(db.getIngredients()).toHaveLength(0);
-      expect(db.getAgentActions({ conversationId })).toHaveLength(1);
+      // 高风险写入（CONFIRM_WRITE_TOOLS）：先生成待确认提案，不执行原变更
+      const update = tools.find(tool => tool.name === "update_preferences")!;
+      const result = await update.execute("call", { taste_preference: "清淡" }, undefined);
+      expect(db.getPreferences().taste_preference).toBe("家常");
+      const actions = db.getAgentActions({ conversationId, status: "pending" });
+      expect(actions).toHaveLength(1);
+      expect(actions[0].action_type).toBe("update_preferences");
       expect((result.details as any).actionProposal.status).toBe("pending");
+      // 轻量记录（AUTO_WRITE_TOOLS）：直接落库，不生成提案
+      const save = tools.find(tool => tool.name === "save_ingredients")!;
+      await save.execute("call", { ingredients: [{ name: "土豆", quantity: "2个" }] }, undefined);
+      expect(db.getIngredients()).toHaveLength(1);
+      expect(db.getAgentActions({ conversationId })).toHaveLength(1);
     } finally { db.close(); }
   });
 
@@ -108,8 +116,21 @@ describe("conversation agent streaming", () => {
     }
     expect(ctx.db.getMessages(first).map(message => message.content)).toEqual(["你好", `会话${first}:你好`]);
     expect(ctx.db.getMessages(second).map(message => message.content)).toEqual(["世界", `会话${second}:世界`]);
+    const doneOne = eventsOne.find(event => event.type === "done");
+    expect(doneOne?.usage).toEqual({ input: 123, output: 45, cacheRead: 0, totalTokens: 168, cost: 0 });
+    const persisted = ctx.db.getMessages(first)[1];
+    expect((persisted.metadata as any)?.usage).toEqual({ input: 123, output: 45, cacheRead: 0, totalTokens: 168, cost: 0 });
     expect(ctx.db.getIngredients()).toHaveLength(0);
     expect(ctx.db.getAgentActions({ conversationId: first })[0]?.status).toBe("pending");
+  });
+
+  test("applies the configured thinking level per request and rejects invalid values", async () => {
+    const ctx = setup();
+    expect(() => ctx.settings.setThinkingLevel("banana")).toThrow();
+    ctx.settings.setThinkingLevel("high");
+    const id = ctx.db.createConversation("推理");
+    await parseSse(await fetch(`${ctx.endpoint}/api/v1/conversations/${id}/messages`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: "聊聊" }) }));
+    expect(ctx.agents.get(id)!.state.thinkingLevel).toBe("high");
   });
 
   test("restores persisted messages into a fresh conversation agent with a bounded window", async () => {

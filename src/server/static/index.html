@@ -21,6 +21,9 @@
     </aside>
     <div class="main">
       <header class="header">
+        <button id="menu-btn" class="menu-btn" type="button" aria-label="打开会话列表" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
         <div class="brand">
           <svg class="logo-mark" viewBox="0 0 48 48" aria-hidden="true">
             <defs>
@@ -112,6 +115,10 @@
                   <input id="freezer-temp" class="temp-input" type="number" step="1" />
                   <span class="temp-unit">°C</span>
                 </label>
+                <button id="shopping-btn" class="fridge-ai-btn" type="button" title="购物清单">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/><path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.3h7.6a1.5 1.5 0 0 0 1.5-1.2L20 8H6"/></svg>
+                  <span>购物清单</span>
+                </button>
                 <button id="fridge-ai-btn" class="fridge-ai-btn" title="让 AI 分析冰箱保鲜状态">
                   <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>
                   <span>AI 检测</span>
@@ -135,6 +142,8 @@
                 <div class="fridge-zone-items" id="fridge-items"></div>
               </div>
             </div>
+
+            <div id="fridge-alert" class="fridge-alert hidden" role="status" aria-live="polite"></div>
 
             <div id="fridge-ai-result" class="fridge-ai-result hidden" role="status" aria-live="polite"></div>
           </div>
@@ -216,6 +225,7 @@
               <input id="p-bodyfat" class="field" type="number" step="0.1" min="3" max="60" placeholder="体脂%(可选)" />
               <button id="p-weight-add" class="primary-btn" type="submit">记录体重</button>
             </form>
+            <div id="weight-chart" class="weight-chart" role="img" aria-label="体重趋势图"></div>
             <div id="profile-daily" class="list"></div>
           </div>
         </div>
@@ -278,6 +288,14 @@
         <option value="dark">深色</option>
         <option value="light">浅色</option>
       </select>
+      <label class="field-label">推理强度<span class="field-hint">仅对支持推理的模型生效</span></label>
+      <select id="thinking-select" class="field">
+        <option value="off">关闭</option>
+        <option value="minimal">极简</option>
+        <option value="low">低</option>
+        <option value="medium">中</option>
+        <option value="high">高</option>
+      </select>
       <label class="field-label">模型提供商</label>
       <select id="provider-select" class="field">
         <option value="openai">OpenAI</option>
@@ -307,6 +325,11 @@
         <button id="save-btn" class="primary-btn">保存</button>
       </div>
       <div id="settings-status" class="settings-status"></div>
+      <div class="settings-divider" role="separator"></div>
+      <div class="settings-export">
+        <span class="settings-export-label">全部健康数据（食材 / 训练 / 目标 / 会话等）导出为 JSON</span>
+        <button id="export-btn" class="secondary-btn" type="button">导出我的数据</button>
+      </div>
     </div>
   </div>
 
@@ -449,6 +472,22 @@
       <p class="skills-desc">选择启用的技能，AI 将据此调整回答方式与专业深度。</p>
       <div id="skills-list" class="skills-list"></div>
       <div id="skills-status" class="settings-status"></div>
+    </div>
+  </div>
+
+  <div id="shopping-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="shopping-title">
+    <div class="modal-content" tabindex="-1">
+      <div class="modal-header">
+        <h2 id="shopping-title">购物清单</h2>
+        <button id="shopping-close" class="close-btn" aria-label="关闭购物清单">✕</button>
+      </div>
+      <p class="page-desc">缺什么先记下来，买齐一项勾一项。</p>
+      <form id="shopping-form" class="shopping-form">
+        <input id="shopping-name" class="field" placeholder="食材名称，如 牛奶" />
+        <input id="shopping-qty" class="field" placeholder="数量（可选）" />
+        <button id="shopping-add" class="primary-btn" type="submit">添加</button>
+      </form>
+      <div id="shopping-list" class="manage-list" aria-live="polite"></div>
     </div>
   </div>
 

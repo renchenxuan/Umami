@@ -302,15 +302,62 @@ function scrollBottom() {
   messages.scrollTop = messages.scrollHeight;
 }
 
-function addBubble(role) {
+// SQLite 的 CURRENT_TIMESTAMP 是 UTC「YYYY-MM-DD HH:MM:SS」，按 UTC 解析、本地展示。
+function parseDbTime(value) {
+  const s = String(value || "");
+  if (!s) return null;
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s) ? s.replace(" ", "T") + "Z" : s;
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function formatTime(value) {
+  const d = value instanceof Date ? value : parseDbTime(value) || new Date(value);
+  if (!d || isNaN(d.getTime())) return "";
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const now = new Date();
+  const sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  if (sameDay) return `${hh}:${mm}`;
+  return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${hh}:${mm}`;
+}
+
+function addBubble(role, timeValue) {
   const wrap = document.createElement("div");
   wrap.className = "msg " + role;
   const bubble = document.createElement("div");
   bubble.className = "bubble";
   wrap.appendChild(bubble);
+  appendMsgMeta(wrap, bubble, role, timeValue);
   messages.appendChild(wrap);
   scrollBottom();
   return bubble;
+}
+
+// 气泡下方的辅助信息：时间戳；助手消息额外提供「复制」。
+function appendMsgMeta(wrap, bubble, role, timeValue) {
+  const time = document.createElement("div");
+  time.className = "msg-time";
+  time.textContent = formatTime(timeValue || new Date());
+  wrap.appendChild(time);
+  if (role !== "assistant") return;
+  const actions = document.createElement("div");
+  actions.className = "msg-actions";
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className = "msg-copy";
+  copyBtn.textContent = "复制";
+  copyBtn.addEventListener("click", async () => {
+    const raw = bubble.dataset.raw || bubble.textContent || "";
+    if (!raw) return;
+    try {
+      await navigator.clipboard.writeText(raw);
+      copyBtn.textContent = "已复制";
+      setTimeout(() => { copyBtn.textContent = "复制"; }, 1600);
+    } catch { /* 剪贴板不可用时静默 */ }
+  });
+  actions.appendChild(copyBtn);
+  wrap.appendChild(actions);
 }
 
 function addImage(dataUrl) {
@@ -320,20 +367,60 @@ function addImage(dataUrl) {
   img.className = "msg-img";
   img.src = dataUrl;
   wrap.appendChild(img);
+  const time = document.createElement("div");
+  time.className = "msg-time";
+  time.textContent = formatTime(new Date());
+  wrap.appendChild(time);
   messages.appendChild(wrap);
   scrollBottom();
 }
 
-function addStatus() {
-  const el = document.createElement("div");
-  el.className = "status hidden";
-  messages.appendChild(el);
-  scrollBottom();
-  return el;
+// ---- 工具调用轨迹：随助手消息持续可见，替代原先一闪而过的状态行 ----
+function getToolTrace(wrap) {
+  let trace = wrap.querySelector(".tool-trace");
+  if (!trace) {
+    trace = document.createElement("div");
+    trace.className = "tool-trace";
+    wrap.insertBefore(trace, wrap.querySelector(".bubble"));
+  }
+  return trace;
 }
 
-// 顶栏冰箱条已移除（改为独立的「我的冰箱」双温区页面）；保留空函数以兼容其他调用点。
-async function loadPantry() {}
+function beginToolTraceItem(trace, name) {
+  const running = [...trace.querySelectorAll('.tool-trace-item[data-tool]')].find(
+    (el) => el.dataset.tool === name && !el.classList.contains("done")
+  );
+  if (running) return;
+  const item = document.createElement("div");
+  item.className = "tool-trace-item";
+  item.dataset.tool = name;
+  item.dataset.started = String(Date.now());
+  const spin = document.createElement("span");
+  spin.className = "tool-trace-spin";
+  const label = document.createElement("span");
+  label.textContent = TOOL_LABELS[name] || `正在执行 ${name}…`;
+  item.appendChild(spin);
+  item.appendChild(label);
+  trace.appendChild(item);
+}
+
+function finishToolTraceItem(trace, evt) {
+  const items = [...trace.querySelectorAll(".tool-trace-item[data-tool]")];
+  const item = items.reverse().find((el) => el.dataset.tool === evt.name && !el.classList.contains("done"));
+  if (!item) return;
+  item.classList.add("done");
+  if (evt.isError) item.classList.add("error");
+  const dur = Date.now() - (Number(item.dataset.started) || Date.now());
+  const label = item.querySelector("span:last-child");
+  const base = (TOOL_LABELS[evt.name] || evt.name).replace(/…$/, "");
+  label.textContent = `${base} · ${(dur / 1000).toFixed(1)}s${evt.isError ? " · 出错" : ""}`;
+}
+
+// 数据被写入（确认提案 / 撤销 / 会话结束）后，刷新受影响的结构化视图。
+async function refreshAfterDataChange() {
+  try { await refreshFridgeItems(); } catch { /* 冰箱数据不可用时静默 */ }
+  if (document.body.dataset.view === "board" && typeof renderBoard === "function") renderBoard();
+}
 
 function renderActionCard(action) {
   const card = document.createElement("div");
@@ -391,10 +478,30 @@ async function resolveAction(id, transition, card, actions) {
   const buttons = actions.querySelectorAll("button");
   for (const b of buttons) b.disabled = true;
   try {
-    await apiRequest(`/api/v1/actions/${id}/${transition}`, { method: "POST" });
-    card.classList.add(transition === "confirm" ? "confirmed" : "cancelled");
-    actions.textContent = transition === "confirm" ? "已确认 ✓" : "已取消";
-    if (transition === "confirm") loadPantry();
+    const result = await apiRequest(`/api/v1/actions/${id}/${transition}`, { method: "POST" });
+    if (transition === "confirm") {
+      card.classList.add("confirmed");
+      actions.textContent = "";
+      const state = document.createElement("span");
+      state.textContent = "已确认 ✓";
+      actions.appendChild(state);
+      if (result && result.undo_available) {
+        const undoBtn = document.createElement("button");
+        undoBtn.type = "button";
+        undoBtn.className = "action-undo";
+        undoBtn.textContent = "撤销";
+        undoBtn.setAttribute("aria-label", "撤销已确认的操作");
+        undoBtn.addEventListener("click", () => resolveAction(id, "undo", card, actions));
+        actions.appendChild(undoBtn);
+      }
+    } else if (transition === "undo") {
+      card.classList.add("undone");
+      actions.textContent = "已撤销";
+    } else {
+      card.classList.add("cancelled");
+      actions.textContent = "已取消";
+    }
+    refreshAfterDataChange();
   } catch (e) {
     actions.textContent = "操作失败：" + e.message;
     for (const b of buttons) b.disabled = false;
@@ -403,9 +510,8 @@ async function resolveAction(id, transition, card, actions) {
 
 attachBtn.addEventListener("click", () => fileInput.click());
 
-fileInput.addEventListener("change", () => {
-  const file = fileInput.files && fileInput.files[0];
-  if (!file) return;
+function loadImageFile(file) {
+  if (!file || !file.type || !file.type.startsWith("image/")) return;
   const reader = new FileReader();
   reader.onload = () => {
     const dataUrl = String(reader.result);
@@ -418,6 +524,10 @@ fileInput.addEventListener("change", () => {
     preview.classList.remove("hidden");
   };
   reader.readAsDataURL(file);
+}
+
+fileInput.addEventListener("change", () => {
+  loadImageFile(fileInput.files && fileInput.files[0]);
 });
 
 clearImg.addEventListener("click", () => {
@@ -425,6 +535,40 @@ clearImg.addEventListener("click", () => {
   preview.classList.add("hidden");
   fileInput.value = "";
 });
+
+// 粘贴 / 拖拽图片：与文件选择共用同一预览与发送链路。
+input.addEventListener("paste", (e) => {
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  for (const item of items) {
+    if (item.type && item.type.startsWith("image/")) {
+      const file = item.getAsFile();
+      if (file) { e.preventDefault(); loadImageFile(file); }
+      return;
+    }
+  }
+});
+
+const composerEl = document.querySelector(".composer");
+if (composerEl) {
+  composerEl.addEventListener("dragover", (e) => {
+    if (!(e.dataTransfer && [...e.dataTransfer.types].includes("Files"))) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    composerEl.classList.add("drag-over");
+  });
+  composerEl.addEventListener("dragleave", (e) => {
+    if (composerEl.contains(e.relatedTarget)) return;
+    composerEl.classList.remove("drag-over");
+  });
+  composerEl.addEventListener("drop", (e) => {
+    composerEl.classList.remove("drag-over");
+    const files = (e.dataTransfer && e.dataTransfer.files) || [];
+    const image = [...files].find((f) => f.type && f.type.startsWith("image/"));
+    if (!image) return;
+    e.preventDefault();
+    loadImageFile(image);
+  });
+}
 
 function escapeHtml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -481,53 +625,116 @@ function renderMarkdownToHtml(text) {
   return renderMarkdownFallback(text);
 }
 
-function handleEvent(evt, bubble, status) {
+function handleEvent(evt, bubble) {
   if (evt.type === "delta") {
     const raw = (bubble.dataset.raw || "") + evt.text;
     bubble.dataset.raw = raw;
     bubble.innerHTML = renderMarkdownToHtml(raw);
     scrollBottom();
   } else if (evt.type === "tool_status") {
-    if (evt.phase === "end") {
-      status.classList.add("hidden");
-    } else {
-      status.textContent = TOOL_LABELS[evt.name] || `正在执行 ${evt.name}…`;
-      status.classList.remove("hidden");
-      scrollBottom();
-    }
+    const wrap = bubble.closest(".msg");
+    if (!wrap) return;
+    const trace = getToolTrace(wrap);
+    if (evt.phase === "end") finishToolTraceItem(trace, evt);
+    else { beginToolTraceItem(trace, evt.name); scrollBottom(); }
   } else if (evt.type === "action_proposed") {
     renderActionCard(evt.action);
+  } else if (evt.type === "action_committed") {
+    refreshAfterDataChange();
+  } else if (evt.type === "done") {
+    const wrap = bubble.closest(".msg");
+    if (wrap && evt.usage && evt.usage.totalTokens) {
+      const time = wrap.querySelector(".msg-time");
+      const usageEl = document.createElement("div");
+      usageEl.className = "msg-usage";
+      const parts = [`↑${evt.usage.input}`, `↓${evt.usage.output}`];
+      if (evt.usage.cacheRead > 0) parts.push(`缓存${evt.usage.cacheRead}`);
+      usageEl.textContent = parts.join(" · ");
+      usageEl.title = `本轮 token 用量：输入 ${evt.usage.input}、输出 ${evt.usage.output}` +
+        (evt.usage.cacheRead > 0 ? `、缓存命中 ${evt.usage.cacheRead}` : "") +
+        `，共 ${evt.usage.totalTokens}`;
+      if (time) wrap.insertBefore(usageEl, time);
+      else wrap.appendChild(usageEl);
+    }
   } else if (evt.type === "error") {
     bubble.textContent = "出错：" + evt.message;
-    status.classList.add("hidden");
+    addRetryButton(bubble.closest(".msg"), true);
   }
-  // start / done / action_committed：前端无需额外 UI
+  // start / done：气泡本身已承载内容，无需额外 UI
+}
+
+// 失败重试：重发上一条用户消息（不重复渲染用户气泡，复用原助手气泡位置）。
+function addRetryButton(wrap, clearBubble) {
+  if (!wrap) return;
+  const bubble = wrap.querySelector(".bubble");
+  if (clearBubble && bubble) bubble.dataset.raw = "";
+  const row = wrap.querySelector(".msg-actions");
+  if (!row || row.querySelector(".msg-retry")) return;
+  const payload = lastSendPayload;
+  if (!payload) return;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "msg-retry";
+  btn.textContent = "重试";
+  btn.addEventListener("click", () => {
+    if (sending) return;
+    wrap.remove();
+    sendMessage(payload.text, payload.image, { echoUser: false });
+  });
+  row.appendChild(btn);
+  row.classList.add("has-retry");
+}
+
+let sending = false;
+let currentAbortController = null;
+let lastSendPayload = null; // 最近一次发送的 { text, image }，供失败重试
+
+function setSendingUI(on) {
+  sendBtn.textContent = on ? "停止" : "发送";
+  sendBtn.classList.toggle("is-stop", on);
+  sendBtn.setAttribute("aria-label", on ? "停止生成" : "发送消息");
+  attachBtn.disabled = on;
 }
 
 async function send() {
   const text = input.value.trim();
-  if (!text && !pendingImage) return;
+  const imagePayload = pendingImage;
+  if ((!text && !imagePayload) || sending) return;
   if (currentConversationId == null) return;
   input.value = "";
-
-  if (pendingImage) addImage(pendingImage.dataUrl);
-  if (text) {
-    const b = addBubble("user");
-    b.textContent = text;
-  }
-
-  const imagePayload = pendingImage;
   pendingImage = null;
   preview.classList.add("hidden");
   fileInput.value = "";
+  await sendMessage(text, imagePayload, { echoUser: true });
+}
+
+async function sendMessage(text, imagePayload, opts = {}) {
+  if (sending) return;
+  if (currentConversationId == null) return;
+  sending = true;
+  setSendingUI(true);
+  lastSendPayload = { text, image: imagePayload };
+  const controller = new AbortController();
+  currentAbortController = controller;
+  const wasEmpty = !!messages.querySelector(".welcome-state");
+  const welcome = messages.querySelector(".welcome-state");
+  if (welcome) welcome.remove();
+
+  if (opts.echoUser !== false) {
+    if (imagePayload) addImage(imagePayload.dataUrl);
+    if (text) {
+      const b = addBubble("user");
+      b.textContent = text;
+    }
+  }
 
   const bubble = addBubble("assistant");
-  const status = addStatus();
 
   try {
     const res = await fetch(`/api/v1/conversations/${currentConversationId}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         text,
         imageBase64: imagePayload ? imagePayload.base64 : undefined,
@@ -559,7 +766,7 @@ async function send() {
         for (const line of chunk.split("\n")) {
           if (line.startsWith("data: ")) {
             try {
-              handleEvent(JSON.parse(line.slice(6)), bubble, status);
+              handleEvent(JSON.parse(line.slice(6)), bubble);
             } catch {
               /* 忽略坏块 */
             }
@@ -567,21 +774,57 @@ async function send() {
         }
       }
     }
+    // 会话第一条消息发送成功后，用消息内容自动命名。
+    if (wasEmpty && text) autoTitleConversation(currentConversationId, text);
   } catch (e) {
-    bubble.textContent = "出错：" + e.message;
+    if (controller.signal.aborted) {
+      const note = document.createElement("div");
+      note.className = "msg-stopped";
+      note.textContent = "已停止生成";
+      bubble.appendChild(note);
+    } else {
+      bubble.textContent = "出错：" + e.message;
+      addRetryButton(bubble.closest(".msg"), false);
+    }
   } finally {
-    status.remove();
+    sending = false;
+    currentAbortController = null;
+    setSendingUI(false);
     scrollBottom();
-    loadPantry();
+    refreshAfterDataChange();
   }
 }
 
-sendBtn.addEventListener("click", send);
+// 首条消息即会话标题：截取前 20 字，仅当标题仍是默认「新对话」时生效。
+async function autoTitleConversation(id, text) {
+  const conv = conversations.find((c) => c.id === id);
+  if (!conv || (conv.title && conv.title !== "新对话")) return;
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  const title = trimmed.slice(0, 20) + (trimmed.length > 20 ? "…" : "");
+  try {
+    await apiRequest(`/api/v1/conversations/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+    conv.title = title;
+    renderConversationList();
+  } catch { /* 保持默认标题 */ }
+}
+
+sendBtn.addEventListener("click", () => {
+  if (sending) {
+    if (currentAbortController) currentAbortController.abort();
+    return;
+  }
+  send();
+});
 
 input.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
-    send();
+    if (!sending) send();
   }
 });
 
@@ -680,31 +923,83 @@ async function selectConversation(id) {
   await renderMessages(id);
 }
 
+const MSG_PAGE_SIZE = 30;
+
 async function renderMessages(id) {
   messages.innerHTML = "";
   try {
-    const res = await fetch(`/api/v1/conversations/${id}/messages`);
-    const data = await res.json();
-    const list = data.ok ? (data.data || []) : [];
-    if (!list.length) {
+    const list = await apiRequest(`/api/v1/conversations/${id}/messages?limit=${MSG_PAGE_SIZE}`);
+    const items = Array.isArray(list) ? list : [];
+    if (!items.length) {
       renderWelcomeState();
       return;
     }
-    for (const m of list) {
-      if (m.role === "user" || m.role === "assistant") {
-        const b = addBubble(m.role);
-        if (m.role === "assistant") {
-          b.dataset.raw = m.content || "";
-          b.innerHTML = renderMarkdownToHtml(m.content || "");
-        } else {
-          b.textContent = m.content || "";
-        }
-      }
-    }
+    appendHistoryMessages(items);
+    if (items.length >= MSG_PAGE_SIZE) insertLoadEarlier(id, items[0].id);
     scrollBottom();
   } catch {
     renderListError(messages, "加载历史消息失败，请刷新重试");
   }
+}
+
+function createMessageNode(m) {
+  if (m.role !== "user" && m.role !== "assistant") return null;
+  const wrap = document.createElement("div");
+  wrap.className = "msg " + m.role;
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  wrap.appendChild(bubble);
+  appendMsgMeta(wrap, bubble, m.role, m.created_at);
+  if (m.role === "assistant") {
+    bubble.dataset.raw = m.content || "";
+    bubble.innerHTML = renderMarkdownToHtml(m.content || "");
+  } else {
+    bubble.textContent = m.content || "";
+  }
+  return wrap;
+}
+
+function appendHistoryMessages(items) {
+  for (const m of items) {
+    const node = createMessageNode(m);
+    if (node) messages.appendChild(node);
+  }
+}
+
+// 更早的消息分页加载：插入顶部并保持当前滚动位置不跳。
+function insertLoadEarlier(conversationId, beforeId) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "load-earlier";
+  btn.textContent = "加载更早消息";
+  btn.dataset.before = String(beforeId);
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    btn.textContent = "加载中…";
+    try {
+      const list = await apiRequest(`/api/v1/conversations/${conversationId}/messages?limit=${MSG_PAGE_SIZE}&before=${btn.dataset.before}`);
+      const items = Array.isArray(list) ? list : [];
+      if (items.length) {
+        btn.dataset.before = String(items[0].id);
+        const prevHeight = messages.scrollHeight;
+        const prevTop = messages.scrollTop;
+        const frag = document.createDocumentFragment();
+        for (const m of items) {
+          const node = createMessageNode(m);
+          if (node) frag.appendChild(node);
+        }
+        messages.insertBefore(frag, messages.firstChild);
+        messages.scrollTop = prevTop + (messages.scrollHeight - prevHeight);
+      }
+      if (items.length < MSG_PAGE_SIZE) btn.remove();
+      else { btn.disabled = false; btn.textContent = "加载更早消息"; }
+    } catch (e) {
+      showAppStatus("加载更早消息失败：" + e.message);
+      btn.disabled = false;
+      btn.textContent = "加载更早消息";
+    }
+  });
+  messages.insertBefore(btn, messages.firstChild);
 }
 
 function renderWelcomeState() {
@@ -1459,7 +1754,7 @@ async function addToFridge(food, quantity, zone) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: food.name, category: food.category, quantity: quantity || undefined, zone: zone || undefined }),
     });
-    await Promise.all([refreshFridgeItems(), loadPantry()]);
+    await refreshFridgeItems();
     const zoneLabel = zone === "freezer" ? "冷冻层" : "冷藏层";
     showAppStatus(`已将“${food.name}”加入${zoneLabel}`, true);
   } catch (error) { showAppStatus("加入冰箱失败：" + error.message); }
@@ -1545,11 +1840,36 @@ async function refreshFridgeItems() {
     fridgeItemsCache = items || [];
     fridgeCount.textContent = items.length ? "(" + items.length + ")" : "";
     renderFridgeList(items);
+    updateFridgeAlert(fridgeItemsCache);
     const zm = document.getElementById("zone-modal");
     if (zm && !zm.classList.contains("hidden")) {
       renderZoneModal();
     }
   } catch (error) { showAppStatus("读取冰箱失败：" + error.message); }
+}
+
+// 临期/过期汇总横幅 + 冰箱导航红点，随每次冰箱数据刷新更新。
+function updateFridgeAlert(items) {
+  let near = 0, expired = 0;
+  for (const it of items) {
+    const zone = it.zone || "fridge";
+    const status = freshnessStatus(daysSince(it.added_at), shelfLifeDays(it.category, zone, fridgeSettings.fridgeTemp, fridgeSettings.freezerTemp));
+    if (status === "near") near++;
+    else if (status === "expired") expired++;
+  }
+  const alert = document.getElementById("fridge-alert");
+  if (alert) {
+    if (expired || near) {
+      alert.textContent = expired
+        ? `⚠️ 有 ${expired} 样食材已过期${near ? `、${near} 样临近保鲜期` : ""}，建议尽快处理。`
+        : `⏳ 有 ${near} 样食材临近保鲜期，优先食用。`;
+      alert.classList.remove("hidden");
+    } else {
+      alert.classList.add("hidden");
+    }
+  }
+  const tab = document.getElementById("tab-fridge");
+  if (tab) tab.classList.toggle("has-alert", expired > 0 || near > 0);
 }
 
 let fridgeSettings = { freezerTemp: -18, fridgeTemp: 4 };
@@ -1684,7 +2004,7 @@ function renderFridgeList(items) {
 async function removeFromFridge(id) {
   try {
     await apiRequest("/api/v1/ingredients/" + id, { method: "DELETE" });
-    await Promise.all([refreshFridgeItems(), loadPantry()]);
+    await refreshFridgeItems();
   } catch (error) { showAppStatus("移出冰箱失败：" + error.message); }
 }
 
@@ -1853,6 +2173,100 @@ if (ingredientModal) {
     closeModal(ingredientModal);
   });
 }
+
+// ---- 购物清单 ----
+const shoppingModal = document.getElementById("shopping-modal");
+const shoppingList = document.getElementById("shopping-list");
+
+function openShoppingModal() {
+  openModal(shoppingModal, document.getElementById("shopping-name"));
+  loadShopping();
+}
+
+async function loadShopping() {
+  if (!shoppingList) return;
+  shoppingList.innerHTML = '<div class="loading-spinner"></div>';
+  try {
+    const list = await apiRequest("/api/v1/shopping-items");
+    renderShopping(Array.isArray(list) ? list : []);
+  } catch { shoppingList.innerHTML = '<div class="fh-empty">加载失败，请稍后重试</div>'; }
+}
+
+function renderShopping(items) {
+  shoppingList.innerHTML = "";
+  if (!items.length) {
+    shoppingList.innerHTML = '<div class="fh-empty">清单还是空的，在上方添加需要买的食材。</div>';
+    return;
+  }
+  for (const it of items) {
+    const row = document.createElement("div");
+    row.className = "manage-row shopping-row" + (it.checked ? " checked" : "");
+
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.className = "shopping-check";
+    check.checked = !!it.checked;
+    check.setAttribute("aria-label", `把「${it.name}」标记为${it.checked ? "未买" : "已买"}`);
+    check.addEventListener("change", async () => {
+      try {
+        await apiRequest(`/api/v1/shopping-items/${it.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ checked: check.checked }),
+        });
+        row.classList.toggle("checked", check.checked);
+      } catch (e) {
+        check.checked = !check.checked;
+        showAppStatus("更新失败：" + e.message);
+      }
+    });
+
+    const main = document.createElement("div");
+    main.className = "manage-main";
+    main.innerHTML = `<div class="manage-title">${escapeHtml(it.name || "")}</div>` +
+      (it.quantity ? `<div class="manage-sub">${escapeHtml(it.quantity)}</div>` : "");
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "danger-btn";
+    del.textContent = "删除";
+    del.setAttribute("aria-label", `删除清单项：${it.name || ""}`);
+    del.addEventListener("click", async () => {
+      try {
+        await apiRequest(`/api/v1/shopping-items/${it.id}`, { method: "DELETE" });
+        loadShopping();
+      } catch (e) { showAppStatus("删除失败：" + e.message); }
+    });
+
+    row.appendChild(check);
+    row.appendChild(main);
+    row.appendChild(del);
+    shoppingList.appendChild(row);
+  }
+}
+
+const shoppingBtn = document.getElementById("shopping-btn");
+if (shoppingBtn) shoppingBtn.addEventListener("click", openShoppingModal);
+const shoppingClose = document.getElementById("shopping-close");
+if (shoppingClose) shoppingClose.addEventListener("click", () => closeModal(shoppingModal));
+const shoppingForm = document.getElementById("shopping-form");
+if (shoppingForm) shoppingForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const nameInput = document.getElementById("shopping-name");
+  const qtyInput = document.getElementById("shopping-qty");
+  const name = nameInput.value.trim();
+  if (!name) { nameInput.focus(); return; }
+  try {
+    await apiRequest("/api/v1/shopping-items", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, quantity: qtyInput.value.trim() || undefined }),
+    });
+    nameInput.value = "";
+    qtyInput.value = "";
+    loadShopping();
+  } catch (e2) { showAppStatus("添加失败：" + e2.message); }
+});
 
 async function loadFridgePage() {
   loadFoodCategories();
@@ -2135,7 +2549,58 @@ async function loadProfile() {
   } catch { renderListError(document.getElementById("profile-daily")); }
 }
 
+// 体重趋势图：内联 SVG 折线（近 30 次记录），体脂以虚线叠加。
+function renderWeightChart(metrics) {
+  const container = document.getElementById("weight-chart");
+  if (!container) return;
+  const points = metrics
+    .filter((m) => typeof m.weight_kg === "number")
+    .slice(0, 30)
+    .map((m) => ({ date: String(m.date || ""), value: m.weight_kg, fat: m.body_fat_pct }))
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+  if (points.length < 2) {
+    container.innerHTML = "";
+    container.classList.add("hidden");
+    return;
+  }
+  container.classList.remove("hidden");
+  const W = 640, H = 150, PAD_L = 40, PAD_R = 14, PAD_T = 16, PAD_B = 22;
+  const values = points.map((p) => p.value);
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = Math.max(max - min, 0.8);
+  const lo = min - span * 0.15, hi = max + span * 0.15;
+  const x = (i) => PAD_L + (i / (points.length - 1)) * (W - PAD_L - PAD_R);
+  const y = (v) => PAD_T + (1 - (v - lo) / (hi - lo)) * (H - PAD_T - PAD_B);
+  const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
+  const area = `${line} L${x(points.length - 1).toFixed(1)},${H - PAD_B} L${PAD_L},${H - PAD_B} Z`;
+  const last = points[points.length - 1];
+  const fatPoints = points.filter((p) => typeof p.fat === "number");
+  const fatLine = fatPoints.length >= 2
+    ? fatPoints.map((p, i) => `${i === 0 ? "M" : "L"}${x(points.indexOf(p)).toFixed(1)},${y(p.fat).toFixed(1)}`).join(" ")
+    : "";
+  container.innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">` +
+    '<defs><linearGradient id="weightFill" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0" stop-color="var(--accent-body)" stop-opacity="0.26"/>' +
+    '<stop offset="1" stop-color="var(--accent-body)" stop-opacity="0.02"/>' +
+    "</linearGradient></defs>" +
+    (fatLine ? `<path d="${fatLine}" fill="none" stroke="var(--accent-diet)" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.85"/>` : "") +
+    `<path d="${area}" fill="url(#weightFill)"/>` +
+    `<path d="${line}" fill="none" stroke="var(--accent-body)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `<circle cx="${x(points.length - 1).toFixed(1)}" cy="${y(last.value).toFixed(1)}" r="3.5" fill="var(--accent-body)"/>` +
+    `<text class="wc-val" x="${(x(points.length - 1) - 8).toFixed(1)}" y="${(y(last.value) - 8).toFixed(1)}" text-anchor="end">${last.value}kg</text>` +
+    `<text class="wc-minmax" x="${PAD_L - 8}" y="${(y(max) + 4).toFixed(1)}" text-anchor="end">${max}</text>` +
+    `<text class="wc-minmax" x="${PAD_L - 8}" y="${(y(min) + 4).toFixed(1)}" text-anchor="end">${min}</text>` +
+    `<text class="wc-label" x="${PAD_L}" y="${H - 6}">${escapeHtml(points[0].date.slice(5))}</text>` +
+    `<text class="wc-label" x="${W - PAD_R}" y="${H - 6}" text-anchor="end">${escapeHtml(last.date.slice(5))}</text>` +
+    "</svg>" +
+    (fatPoints.length >= 2
+      ? '<div class="wc-legend"><span><i class="wc-dot solid"></i>体重 kg</span><span><i class="wc-dot dash"></i>体脂 %</span></div>'
+      : "");
+}
+
 function renderProfileDaily(metrics, diets) {
+  renderWeightChart(metrics || []);
   const container = document.getElementById("profile-daily");
   const entries = [];
   for (const m of metrics.slice(0, 14)) {
@@ -2258,14 +2723,17 @@ function renderAddFields() {
   }
 }
 
-function openAddCard() {
-  addCardType = "workouts";
-  document.querySelectorAll(".add-type").forEach((b) => b.classList.toggle("active", b.dataset.type === addCardType));
+// type 为目标/习惯管理弹窗跳转而来时直接预选对应类型。
+function openAddCardWithType(type) {
+  addCardType = type;
+  document.querySelectorAll(".add-type").forEach((b) => b.classList.toggle("active", b.dataset.type === type));
   renderAddFields();
   addCardStatus.textContent = "";
   addCardStatus.className = "settings-status";
   openModal(addCardModal, addCardModal.querySelector(".add-type.active"));
 }
+
+function openAddCard() { openAddCardWithType("workouts"); }
 
 document.querySelectorAll(".add-type").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -2590,6 +3058,8 @@ async function loadSettings() {
       modelIdInput.value = currentSettings.custom.model || "";
     }
     if (currentSettings.uiTheme) applyTheme(currentSettings.uiTheme);
+    const thinkingSelect = document.getElementById("thinking-select");
+    if (thinkingSelect && currentSettings.thinkingLevel) thinkingSelect.value = currentSettings.thinkingLevel;
     renderKeyHint();
     populateModelSelect();
     updateModelAvailability();
@@ -2680,7 +3150,7 @@ saveBtn.addEventListener("click", async () => {
   const apiKey = apiKeyInput.value.trim();
   showStatus("保存中…", null);
   try {
-    const body = { modelName, apiKey, uiTheme: document.getElementById("theme-select").value };
+    const body = { modelName, apiKey, uiTheme: document.getElementById("theme-select").value, thinkingLevel: (document.getElementById("thinking-select") || {}).value || "off" };
     if (modelName === "custom") {
       body.baseUrl = baseUrlInput.value.trim();
       body.modelId = modelIdInput.value.trim();
@@ -2920,7 +3390,7 @@ if (goalsClose) goalsClose.addEventListener("click", () => closeModal(goalsModal
 const goalsAdd = document.getElementById("goals-add");
 if (goalsAdd) goalsAdd.addEventListener("click", () => {
   closeModal(goalsModal);
-  if (addCardModal) { openModal(addCardModal); const t = document.getElementById("add-card-type"); if (t) t.value = "goals"; }
+  openAddCardWithType("goals");
 });
 
 // ---- 习惯管理 ----
@@ -2965,7 +3435,7 @@ if (habitsClose) habitsClose.addEventListener("click", () => closeModal(habitsMo
 const habitsAdd = document.getElementById("habits-add");
 if (habitsAdd) habitsAdd.addEventListener("click", () => {
   closeModal(habitsModal);
-  if (addCardModal) { openModal(addCardModal); const t = document.getElementById("add-card-type"); if (t) t.value = "habits"; }
+  openAddCardWithType("habits");
 });
 
 // ---- 数据导出 ----
@@ -2989,8 +3459,27 @@ if (exportBtn) exportBtn.addEventListener("click", async () => {
 });
 
 // 新模态框：点击遮罩或 Esc 关闭
-[favoritesModal, goalsModal, habitsModal].forEach((m) => {
+[favoritesModal, goalsModal, habitsModal, shoppingModal].forEach((m) => {
   if (!m) return;
   m.addEventListener("click", (e) => { if (e.target === m) closeModal(m); });
 });
+
+// ---- 移动端：会话侧栏抽屉 ----
+const menuBtn = document.getElementById("menu-btn");
+if (menuBtn) {
+  const setSidebar = (open) => {
+    document.body.classList.toggle("sidebar-open", open);
+    menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  };
+  menuBtn.addEventListener("click", () => setSidebar(!document.body.classList.contains("sidebar-open")));
+  // 选中会话后自动收起抽屉
+  conversationList.addEventListener("click", (e) => {
+    if (e.target instanceof Element && e.target.closest(".conversation-item")) setSidebar(false);
+  });
+  document.addEventListener("click", (e) => {
+    if (!document.body.classList.contains("sidebar-open")) return;
+    if (e.target instanceof Element && (e.target.closest(".sidebar") || e.target.closest("#menu-btn"))) return;
+    setSidebar(false);
+  });
+}
 

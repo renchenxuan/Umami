@@ -38,6 +38,8 @@ export function createAgent(
     onProposal?: (proposal: AgentActionProposal) => void;
     /** 启用的技能 id 列表；省略时启用全部（保持原有行为）。 */
     enabledSkillIds?: string[];
+    /** 会话亲和 id：转发给支持缓存的 provider，提升多轮对话的缓存命中。 */
+    sessionId?: string;
   } = {},
 ): Agent {
   const enabledIds = options.enabledSkillIds ?? DEFAULT_ENABLED_SKILL_IDS;
@@ -46,6 +48,12 @@ export function createAgent(
     ? `${SYSTEM_PROMPT}\n\n${skillSection}`
     : SYSTEM_PROMPT;
   const tools = createAllTools(db, models, getModel, options);
+  const baseStreamFn = models.streamSimple.bind(models);
+  // 会话级 prompt 缓存：sessionId 提供会话亲和，cacheRetention 请求短期缓存；
+  // 不支持的 provider 会按各自的 compat 语义忽略，因此始终透传是安全的。
+  const streamFn: typeof baseStreamFn = options.sessionId
+    ? (m, context, opts) => baseStreamFn(m, context, { ...opts, sessionId: options.sessionId, cacheRetention: "short" })
+    : baseStreamFn;
   return new Agent({
     initialState: {
       systemPrompt,
@@ -53,7 +61,7 @@ export function createAgent(
       tools,
       messages: restoreAgentMessages(options.restoredMessages ?? [], model),
     },
-    streamFn: models.streamSimple.bind(models),
+    streamFn,
     getApiKey: options.getApiKey,
     transformContext: async (messages) => messages.slice(-40),
   });

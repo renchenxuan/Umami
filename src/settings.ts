@@ -15,6 +15,10 @@ export const ALL_MODELS: ModelName[] = [
   "custom",
 ];
 
+/** 可选的推理强度；转发给 Agent 的 thinkingLevel，仅对支持推理的模型生效。 */
+export const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high"] as const;
+export type ThinkingLevelSetting = (typeof THINKING_LEVELS)[number];
+
 /**
  * 每家 provider 对应的 settings key，以及需要同步的环境变量。
  * 注意：pi-ai 的 google provider 读 GEMINI_API_KEY；moonshot 读 MOONSHOT_API_KEY 等。
@@ -211,11 +215,22 @@ export class SettingsStore {
       secretPersistence: this.secrets.persistence,
       modelConfigured: !!this.getKey(this.getModelName()),
       uiTheme: this.get("ui_theme") || "aurora",
+      thinkingLevel: this.getThinkingLevel(),
     };
   }
 
   setUiTheme(value: string) {
     if (value !== "light" && value !== "dark" && value !== "aurora") throw new Error("无效的界面主题");
     this.set("ui_theme", value);
+  }
+
+  getThinkingLevel(): ThinkingLevelSetting {
+    const v = this.get("thinking_level");
+    return (THINKING_LEVELS as readonly string[]).includes(v) ? (v as ThinkingLevelSetting) : "off";
+  }
+
+  setThinkingLevel(level: string): void {
+    if (!(THINKING_LEVELS as readonly string[]).includes(level)) throw new Error("无效的推理强度");
+    this.set("thinking_level", level);
   }
 }

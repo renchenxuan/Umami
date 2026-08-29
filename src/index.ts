@@ -50,6 +50,7 @@ startServer(agent, db, settings, models, {
       getApiKey,
       onProposal,
       enabledSkillIds,
+      sessionId: String(conversationId),
     });
     return conversationAgent;
   },

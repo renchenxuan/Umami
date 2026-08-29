@@ -24,7 +24,7 @@ export interface AgentActionProposal { id:number; conversation_id:number|null; a
 type PatchValue = string|number|null|undefined;
 export const SECRET_SETTING_KEYS = ["openai_api_key","google_api_key","deepseek_api_key","moonshot_api_key","minimax_api_key","anthropic_api_key","dashscope_api_key","zhipu_api_key","custom_api_key"];
 const parseJson = (value:unknown):unknown => { if(typeof value!=="string"||!value) return value??null; try{return JSON.parse(value)}catch{return value} };
-const LATEST_SCHEMA_VERSION=7;
+const LATEST_SCHEMA_VERSION=8;
 const validDate=(value:string)=>{const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(value);const parsed=match?new Date(Date.UTC(Number(match[1]),Number(match[2])-1,Number(match[3]))):null;return!!match&&!!parsed&&parsed.toISOString().slice(0,10)===value};
 const requireText=(field:string,value:unknown,max:number)=>{if(typeof value!=="string"||!value.trim()||value.length>max)throw new RangeError(`${field} 必须是 1 到 ${max} 个字符`)};
 const requireDate=(field:string,value:unknown)=>{if(typeof value!=="string"||!validDate(value))throw new RangeError(`${field} 必须是有效的 YYYY-MM-DD 日期`)};

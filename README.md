@@ -2,6 +2,8 @@
 
 「膳食 · 待在家 · 管家」——基于 [pi](https://github.com/earendil-works/pi)（`pi-ai` + `pi-agent-core`）构建的**本地优先膳食健康管家**。覆盖饮食、健身、身体数据与习惯管理；健康记录和会话持久化到本地 SQLite，选择云模型时只向对应提供商发送完成当前请求所需的上下文。
 
+> ⚡ **随身轻量版**：膳待家也有 Agent Skill 版——装进 ZCode / Codex / Claude Code，在聊天窗口里就能管冰箱、出菜谱、记三餐、排训练，数据同样存本地 SQLite。见 [Umami-Skill for Health](https://github.com/renchenxuan/Umami-Skill-for-Health)。**要界面用本 Web 版，图顺手装 Skill 版。**
+
 ## 为什么做这个项目
 
 程序员的一天，常常从一杯咖啡开始，在深夜的屏幕前结束。久坐、外卖、不规律——「保持好身材」成了许多人愿望清单上年年出现、又年年落空的一项。我们不是不想健康，只是缺一个够得着、懂生活的小帮手。

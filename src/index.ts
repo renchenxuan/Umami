@@ -8,6 +8,7 @@ import { createAgent } from "./agent";
 import { startServer } from "./server/server";
 import { validateCustomBaseUrl } from "./server/api";
 import { unsafeCustomEndpointsEnabled } from "./config";
+import { startScheduler } from "./server/scheduler";
 
 const db = new RecipeDB(config.databasePath);
 const settings = new SettingsStore(db);
@@ -53,5 +54,9 @@ startServer(agent, db, settings, models, {
       sessionId: String(conversationId),
     });
     return conversationAgent;
+  },
+  onReady: ({ conversationAgents }) => {
+    startScheduler(db, conversationAgents);
+    console.log("⏰ 定时任务调度器已启动（每 20 秒检查到期任务）");
   },
 });

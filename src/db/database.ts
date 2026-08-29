@@ -20,11 +20,13 @@ export interface Conversation { id:number; title:string; context:unknown; create
 export interface Message { id:number; conversation_id:number; role:"user"|"assistant"|"system"; content:string; metadata:unknown; created_at:string }
 export type AgentActionStatus="pending"|"confirmed"|"cancelled"|"undone";
 export interface AgentActionProposal { id:number; conversation_id:number|null; action_type:string; payload:unknown; status:AgentActionStatus; result:unknown; undo_payload:unknown; undo_available:boolean; created_at:string; updated_at:string }
+export type ScheduleType="daily"|"weekly"|"once";
+export interface Schedule { id:number; conversation_id:number; title:string; message:string; schedule_type:ScheduleType; time_of_day:string; weekdays:number[]|null; fire_date:string|null; enabled:number; last_fired_at:string|null; next_fire_at:string|null; created_at:string; updated_at:string }
 
 type PatchValue = string|number|null|undefined;
 export const SECRET_SETTING_KEYS = ["openai_api_key","google_api_key","deepseek_api_key","moonshot_api_key","minimax_api_key","anthropic_api_key","dashscope_api_key","zhipu_api_key","custom_api_key"];
 const parseJson = (value:unknown):unknown => { if(typeof value!=="string"||!value) return value??null; try{return JSON.parse(value)}catch{return value} };
-const LATEST_SCHEMA_VERSION=8;
+const LATEST_SCHEMA_VERSION=9;
 const validDate=(value:string)=>{const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(value);const parsed=match?new Date(Date.UTC(Number(match[1]),Number(match[2])-1,Number(match[3]))):null;return!!match&&!!parsed&&parsed.toISOString().slice(0,10)===value};
 const requireText=(field:string,value:unknown,max:number)=>{if(typeof value!=="string"||!value.trim()||value.length>max)throw new RangeError(`${field} 必须是 1 到 ${max} 个字符`)};
 const requireDate=(field:string,value:unknown)=>{if(typeof value!=="string"||!validDate(value))throw new RangeError(`${field} 必须是有效的 YYYY-MM-DD 日期`)};
@@ -43,6 +45,54 @@ const validateDietFoods=(value:unknown)=>{
 
 /** 根据分类给出默认存放分区（肉类/水产默认冷冻，其余冷藏）。 */
 export function defaultZoneForCategory(category:string):"freezer"|"fridge"{return ["肉类","水产"].includes(category)?"freezer":"fridge";}
+
+const TIME_OF_DAY_PATTERN=/^(?:[01]\d|2[0-3]):[0-5]\d$/;
+/** 时间语义约定：time_of_day/weekdays/fire_date 均为用户本地时间；返回值为 UTC "YYYY-MM-DD HH:MM:SS"。 */
+export function validateScheduleInput(d:Record<string,unknown>){
+  requireText("title",d.title,120);
+  requireText("message",d.message,2000);
+  if(!["daily","weekly","once"].includes(String(d.schedule_type)))throw new RangeError("schedule_type 必须是 daily、weekly 或 once");
+  if(typeof d.time_of_day!=="string"||!TIME_OF_DAY_PATTERN.test(d.time_of_day))throw new RangeError("time_of_day 必须是 HH:MM（24 小时制）");
+  if(d.schedule_type==="weekly"){
+    if(!Array.isArray(d.weekdays)||d.weekdays.length<1||d.weekdays.length>7)throw new RangeError("weekly 必须提供 1 到 7 个 weekdays（1=周一…7=周日）");
+    const days=new Set((d.weekdays as unknown[]).map(v=>Number(v)));
+    if(days.size!==d.weekdays.length||[...days].some(n=>!Number.isInteger(n)||n<1||n>7))throw new RangeError("weekdays 必须是 1 到 7 的整数");
+  }
+  if(d.schedule_type==="once"&&d.fire_date!==undefined&&d.fire_date!==null)requireDate("fire_date",d.fire_date);
+}
+
+/** 计算下一次触发时间（本地时间语义 → UTC 存储）；once 已过期时返回 null。 */
+export function computeNextFire(scheduleType:ScheduleType,timeOfDay:string,weekdays:number[]|null,fireDate:string|null,from:Date):string|null{
+  const [hour,minute]=timeOfDay.split(":").map(Number);
+  const atTime=(day:Date)=>{const d=new Date(day.getFullYear(),day.getMonth(),day.getDate(),hour,minute,0,0);return d.getTime()>from.getTime()?d:null};
+  if(scheduleType==="once"){
+    if(fireDate){
+      const [y,m,d]=fireDate.split("-").map(Number);
+      const fired=atTime(new Date(y,m-1,d));
+      return fired?utcStamp(fired):null;
+    }
+    const today=atTime(from);
+    return today?utcStamp(today):null;
+  }
+  if(scheduleType==="daily"){
+    const today=atTime(from);
+    if(today)return utcStamp(today);
+    const tomorrow=new Date(from.getFullYear(),from.getMonth(),from.getDate()+1);
+    return utcStamp(new Date(tomorrow.getFullYear(),tomorrow.getMonth(),tomorrow.getDate(),hour,minute,0,0));
+  }
+  const wanted=new Set((weekdays??[]).map(Number));
+  for(let offset=0;offset<8;offset++){
+    const day=new Date(from.getFullYear(),from.getMonth(),from.getDate()+offset);
+    // weekdays 约定 1=周一…7=周日；JS getDay() 0=周日
+    const weekday=((day.getDay()+6)%7)+1;
+    if(!wanted.has(weekday))continue;
+    const fired=atTime(day);
+    if(fired)return utcStamp(fired);
+  }
+  return null;
+}
+/** 本地 Date → UTC "YYYY-MM-DD HH:MM:SS"（与 SQLite datetime('now') 同口径）。 */
+export function utcStamp(d:Date){return d.toISOString().slice(0,19).replace("T"," ")}
 
 /** Versioned SQLite store. A file DB is copied before any migration runs. */
 export class RecipeDB {
@@ -145,6 +195,27 @@ export class RecipeDB {
     });
     run(8,"ingredient_notes",()=>{
       this.addColumn("ingredients","note TEXT");
+    });
+    // 定时任务/自动化：时间语义均为用户本地时间，next_fire_at 存 UTC 以便与 datetime('now') 比较
+    run(9,"schedules",()=>{
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS schedules(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          message TEXT NOT NULL,
+          schedule_type TEXT NOT NULL DEFAULT 'daily' CHECK(schedule_type IN('daily','weekly','once')),
+          time_of_day TEXT NOT NULL,
+          weekdays TEXT,
+          fire_date TEXT,
+          enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN(0,1)),
+          last_fired_at TEXT,
+          next_fire_at TEXT,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_schedules_due ON schedules(enabled,next_fire_at);
+      `);
     });
   }
   getMigrationVersion(){return Number((this.db.query("SELECT COALESCE(MAX(version),0) version FROM schema_migrations").get() as {version:number}).version)}
@@ -289,6 +360,44 @@ export class RecipeDB {
     return existing?.id??this.createConversation("兼容聊天",{legacy:true});
   }
 
+  private schedule(r:Record<string,unknown>):Schedule{return {...r,weekdays:parseJson(r.weekdays) as number[]|null,enabled:Number(r.enabled)} as unknown as Schedule}
+  createSchedule(d:{conversationId:number;title:string;message:string;scheduleType:ScheduleType;timeOfDay:string;weekdays?:number[]|null;fireDate?:string|null}){
+    // 工具与 API 都可能传入模型生成的参数，格式校验必须在存储层兜底
+    validateScheduleInput({title:d.title,message:d.message,schedule_type:d.scheduleType,time_of_day:d.timeOfDay,weekdays:d.weekdays??null,fire_date:d.fireDate??null});
+    const next=computeNextFire(d.scheduleType,d.timeOfDay,d.weekdays??null,d.fireDate??null,new Date());
+    if(!next)throw new RangeError("指定的触发时间已过去，请选择未来的时间");
+    return Number(this.db.query("INSERT INTO schedules(conversation_id,title,message,schedule_type,time_of_day,weekdays,fire_date,next_fire_at) VALUES(?,?,?,?,?,?,?,?)").run(d.conversationId,d.title,d.message,d.scheduleType,d.timeOfDay,d.weekdays?JSON.stringify(d.weekdays):null,d.fireDate??null,next).lastInsertRowid);
+  }
+  getSchedules(){return (this.db.query("SELECT * FROM schedules ORDER BY enabled DESC,next_fire_at,id").all() as Array<Record<string,unknown>>).map(r=>this.schedule(r))}
+  getSchedule(id:number){const r=this.db.query("SELECT * FROM schedules WHERE id=?").get(id) as Record<string,unknown>|null;return r?this.schedule(r):null}
+  updateSchedule(id:number,p:{title?:string;message?:string;schedule_type?:ScheduleType;time_of_day?:string;weekdays?:number[]|null;fire_date?:string|null;enabled?:number}){
+    const current=this.getSchedule(id);if(!current)return false;
+    const merged={title:p.title??current.title,message:p.message??current.message,schedule_type:(p.schedule_type??current.schedule_type) as ScheduleType,time_of_day:p.time_of_day??current.time_of_day,weekdays:p.weekdays!==undefined?p.weekdays:current.weekdays,fire_date:p.fire_date!==undefined?p.fire_date:current.fire_date};
+    validateScheduleInput(merged);
+    const recompute="schedule_type" in p||"time_of_day" in p||"weekdays" in p||"fire_date" in p||(p.enabled===1&&(!current.next_fire_at||current.next_fire_at<=utcStamp(new Date())));
+    const nextFire=recompute?computeNextFire(merged.schedule_type,merged.time_of_day,merged.weekdays??null,merged.fire_date??null,new Date()):current.next_fire_at;
+    if(recompute&&!nextFire)throw new RangeError("指定的触发时间已过去，请选择未来的时间");
+    const sets:string[]=[],vals:Array<string|number|null>=[];
+    for(const [k,v] of Object.entries(p)){if(v===undefined||k==="weekdays")continue;sets.push(`${k}=?`);vals.push(v as string|number)}
+    if("weekdays" in p){sets.push("weekdays=?");vals.push(p.weekdays?JSON.stringify(p.weekdays):null)}
+    if(recompute){sets.push("next_fire_at=?");vals.push(nextFire)}
+    if(!sets.length)return true;
+    return this.db.query(`UPDATE schedules SET ${sets.join(",")},updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(...vals,id).changes>0;
+  }
+  deleteSchedule(id:number){return this.db.query("DELETE FROM schedules WHERE id=?").run(id).changes>0}
+  dueSchedules(nowUtc:string){return (this.db.query("SELECT * FROM schedules WHERE enabled=1 AND next_fire_at IS NOT NULL AND next_fire_at<=? ORDER BY next_fire_at").all(nowUtc) as Array<Record<string,unknown>>).map(r=>this.schedule(r))}
+  /** 记录一次触发并推进 next_fire_at；once 或无下一次时自动停用。 */
+  markScheduleFired(id:number,firedAt:Date){
+    const current=this.getSchedule(id);if(!current)return null;
+    if(current.schedule_type==="once"){this.db.query("UPDATE schedules SET enabled=0,last_fired_at=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(utcStamp(firedAt),id)}
+    else{
+      const next=computeNextFire(current.schedule_type,current.time_of_day,current.weekdays,current.fire_date,firedAt);
+      if(next)this.db.query("UPDATE schedules SET last_fired_at=?,next_fire_at=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(utcStamp(firedAt),next,id);
+      else this.db.query("UPDATE schedules SET enabled=0,last_fired_at=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(utcStamp(firedAt),id);
+    }
+    return this.getSchedule(id);
+  }
+
   private action(r:Record<string,unknown>):AgentActionProposal{return{...r,payload:parseJson(r.payload),result:parseJson(r.result),undo_payload:parseJson(r.undo_payload),undo_available:Boolean(r.undo_available)} as unknown as AgentActionProposal}
   createAgentAction(conversationId:number|null,actionType:string,payload:unknown){
     const id=Number(this.db.query("INSERT INTO agent_actions(conversation_id,action_type,payload) VALUES(?,?,?)").run(conversationId,actionType,JSON.stringify(payload??{})).lastInsertRowid);
@@ -370,6 +479,12 @@ export class RecipeDB {
     if(type==="log_diet"){
       const id=this.addDietLog(String(p.date??new Date().toISOString().slice(0,10)),String(p.meal_type??"早餐"),p.foods??[],String(p.note??""));return{result:{id},undo:{id},undoAvailable:true};
     }
+    if(type==="delete_schedule"){
+      const target=this.getSchedule(Number(p.id));
+      if(!target)throw new RangeError("定时任务不存在");
+      this.deleteSchedule(target.id);
+      return{result:{id:target.id},undo:target,undoAvailable:true};
+    }
     throw new RangeError(`不支持的操作类型：${type}`);
   }
   private executeUndo(type:string,undo:Record<string,unknown>){
@@ -385,6 +500,13 @@ export class RecipeDB {
     if(type==="update_goal_status"){for(const raw of Array.isArray(undo.goals)?undo.goals:[]){const g=raw as {id:number;status:string};this.updateGoal(Number(g.id),{status:g.status})}return}
     if(type==="log_habit"){this.archiveHabit(id);return}
     if(type==="log_diet"){this.archiveDietLog(id);return}
+    if(type==="delete_schedule"){
+      // 撤销删除：按快照原样重建（新 id），保留触发配置
+      const s=undo as unknown as Schedule;
+      if(!s?.title)return;
+      this.db.query("INSERT INTO schedules(conversation_id,title,message,schedule_type,time_of_day,weekdays,fire_date,enabled,last_fired_at,next_fire_at) VALUES(?,?,?,?,?,?,?,?,?,?)").run(s.conversation_id,s.title,s.message,s.schedule_type,s.time_of_day,s.weekdays?JSON.stringify(s.weekdays):null,s.fire_date??null,s.enabled,s.last_fired_at??null,s.next_fire_at??null);
+      return;
+    }
     throw new RangeError("该操作不可撤销");
   }
   searchFoods(query:string,category?:string){const q=query.trim();let sql="SELECT id,name,category,emoji,unit FROM foods";const cond:string[]=[],params:string[]=[];if(q){cond.push("name LIKE ?");params.push(`%${q}%`);}if(category){cond.push("category=?");params.push(category);}if(cond.length)sql+=" WHERE "+cond.join(" AND ");sql+=" ORDER BY category,id LIMIT 500";return this.db.query(sql).all(...params) as Array<{id:number;name:string;category:string;emoji:string;unit:string}>}

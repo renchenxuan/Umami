@@ -12,6 +12,7 @@ import { createGoalTools } from "./goals";
 import { createHabitTools } from "./habits";
 import { createDietTools } from "./diet";
 import { createFoodTools } from "./foods";
+import { createScheduleTools } from "./schedules";
 
 /** 汇总构建全部工具。getModel 用于子调用工具读取当前模型（支持运行时切换）。 */
 export function createAllTools(
@@ -31,6 +32,7 @@ export function createAllTools(
     ...createHabitTools(db),
     ...createDietTools(db),
     ...createFoodTools(db),
+    ...createScheduleTools(db, options.conversationId),
     createNutritionTool(models, getModel),
   ];
   if (options.conversationId === undefined) return tools;
@@ -55,6 +57,7 @@ export const CONFIRM_WRITE_TOOLS = new Set([
   "clear_ingredients",
   "delete_favorite",
   "update_preferences",
+  "delete_schedule",
 ]);
 
 /**

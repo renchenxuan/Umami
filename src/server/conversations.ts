@@ -71,10 +71,12 @@ export class ConversationAgentManager {
     runtime.agent.subscribe((event) => {
       const writer = runtime.currentWriter;
       if (!writer) return;
+      if (event.type === "agent_start") writer({ type: "agent_state", active: true });
       if (event.type === "message_update" && event.assistantMessageEvent.type === "text_delta") writer({ type: "delta", text: event.assistantMessageEvent.delta });
       if (event.type === "tool_execution_start") writer({ type: "tool_status", phase: "start", name: event.toolName });
       if (event.type === "tool_execution_update") writer({ type: "tool_status", phase: "update", name: event.toolName });
       if (event.type === "tool_execution_end") writer({ type: "tool_status", phase: "end", name: event.toolName, isError: event.isError });
+      if (event.type === "agent_end") writer({ type: "agent_state", active: false });
     });
     this.runtimes.set(conversationId, runtime);
     return runtime;
@@ -165,5 +167,47 @@ export class ConversationAgentManager {
       cancel: cancelCurrent,
     });
     return new Response(stream, { headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-store", "Connection": "keep-alive" } });
+  }
+
+  /**
+   * 定时任务触发：把提醒作为带 scheduled 标记的用户消息写入会话，
+   * 若模型可用则让 Agent 生成一段回应并落库。与用户请求共用 runtime.chain 串行化，
+   * 不会打断正在进行的对话；未配置模型时提醒消息仍然可见（本地优先）。
+   */
+  async runScheduled(conversationId: number, schedule: { id: number; title: string; message: string }): Promise<{ conversationId: number; userMessageId: number; assistantMessageId?: number; modelError?: string }> {
+    const content = `⏰ 定时任务「${schedule.title}」触发\n\n${schedule.message}`;
+    const userMessageId = this.db.addMessage(conversationId, "user", content, { scheduled: true, scheduleId: schedule.id, scheduleTitle: schedule.title });
+    const providerName = this.settings.getModelName();
+    const apiKey = this.settings.getKey(providerName);
+    let model: Model<any> | null = null;
+    try { model = getModelByName(this.models, this.settings, providerName); } catch { model = null; }
+    if (!model || !apiKey) return { conversationId, userMessageId, modelError: `模型 "${providerName}" 未配置，已记录提醒但未生成回复` };
+    const snapshot = { model, apiKey };
+    const runtime = this.runtime(conversationId, snapshot.model);
+    const task = async (): Promise<{ conversationId: number; userMessageId: number; assistantMessageId?: number; modelError?: string }> => {
+      runtime.apiKey = snapshot.apiKey;
+      runtime.agent.state.model = snapshot.model;
+      try {
+        const persisted = this.db.getMessages(conversationId, 40);
+        runtime.agent.state.messages = restoreAgentMessages(persisted, snapshot.model);
+        runtime.agent.state.thinkingLevel = this.settings.getThinkingLevel();
+        await runtime.agent.prompt(content);
+        const error = runtime.agent.state.errorMessage;
+        if (error) return { conversationId, userMessageId, modelError: safeProviderMessage(error, this.settings.getSecretValues()) };
+        const assistant = [...runtime.agent.state.messages].reverse().find((message) => message.role === "assistant");
+        const assistantText = extractText(assistant).trim();
+        const usage = assistant?.role === "assistant" ? assistant.usage : undefined;
+        const streamUsage: StreamUsage | undefined = usage && usage.totalTokens
+          ? { input: usage.input, output: usage.output, cacheRead: usage.cacheRead, totalTokens: usage.totalTokens, cost: usage.cost?.total ?? 0 }
+          : undefined;
+        const assistantMessageId = assistantText
+          ? this.db.addMessage(conversationId, "assistant", assistantText, { model: `${snapshot.model.provider}/${snapshot.model.id}`, usage: streamUsage ?? null, scheduled: true, scheduleId: schedule.id })
+          : undefined;
+        return { conversationId, userMessageId, assistantMessageId };
+      } catch (error) {
+        return { conversationId, userMessageId, modelError: safeProviderMessage(error, this.settings.getSecretValues()) };
+      }
+    };
+    return runtime.chain.then(task, task);
   }
 }

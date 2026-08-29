@@ -13,6 +13,8 @@ const appStatus = document.getElementById("app-status");
 let pendingImage = null; // { base64, mimeType, dataUrl }
 let currentConversationId = null;
 let conversations = [];
+// 收到定时任务提醒但还没打开过的会话，用于列表红点
+const reminderConversations = new Set();
 
 // ---- 主题切换 ----
 const THEME_KEY = "health_theme";
@@ -248,6 +250,9 @@ const TOOL_LABELS = {
   update_goal_status: "更新目标状态…",
   log_habit: "记录习惯…",
   get_habits: "读取习惯…",
+  create_schedule: "创建定时任务…",
+  list_schedules: "读取定时任务…",
+  delete_schedule: "删除定时任务…",
 };
 
 const ACTION_LABELS = {
@@ -639,8 +644,16 @@ function handleEvent(evt, bubble) {
     else { beginToolTraceItem(trace, evt.name); scrollBottom(); }
   } else if (evt.type === "action_proposed") {
     renderActionCard(evt.action);
+    if (window.__umamiPet) window.__umamiPet.setState("waiting");
   } else if (evt.type === "action_committed") {
     refreshAfterDataChange();
+    if (window.__umamiPet) window.__umamiPet.setState("jumping");
+    spawnSuccessRipple();
+  } else if (evt.type === "agent_state") {
+    // AI 开始/结束一轮运行：驱动呼吸极光与宠物的工作状态
+    document.body.dataset.aiState = evt.active ? "thinking" : "idle";
+    if (evt.active) { if (window.__umamiPet) window.__umamiPet.setState("running"); }
+    else if (window.__umamiPet) window.__umamiPet.setState("waving", { once: true });
   } else if (evt.type === "done") {
     const wrap = bubble.closest(".msg");
     if (wrap && evt.usage && evt.usage.totalTokens) {
@@ -659,6 +672,7 @@ function handleEvent(evt, bubble) {
   } else if (evt.type === "error") {
     bubble.textContent = "出错：" + evt.message;
     addRetryButton(bubble.closest(".msg"), true);
+    if (window.__umamiPet) window.__umamiPet.setState("failed");
   }
   // start / done：气泡本身已承载内容，无需额外 UI
 }
@@ -835,6 +849,7 @@ function renderConversationList() {
   for (const c of conversations) {
     const item = document.createElement("div");
     item.className = "conversation-item" + (c.id === currentConversationId ? " active" : "");
+    if (reminderConversations.has(c.id)) item.classList.add("has-reminder");
     item.dataset.id = c.id;
 
     const title = document.createElement("span");
@@ -919,7 +934,7 @@ async function startRenameConversation(id, titleEl) {
 async function selectConversation(id) {
   currentConversationId = id;
   localStorage.setItem("currentConversationId", String(id));
-  renderConversationList();
+  if (reminderConversations.delete(id)) renderConversationList();
   await renderMessages(id);
 }
 
@@ -944,8 +959,10 @@ async function renderMessages(id) {
 
 function createMessageNode(m) {
   if (m.role !== "user" && m.role !== "assistant") return null;
+  const meta = m.metadata && typeof m.metadata === "object" && !Array.isArray(m.metadata) ? m.metadata : null;
   const wrap = document.createElement("div");
-  wrap.className = "msg " + m.role;
+  wrap.className = "msg " + m.role + (meta && meta.scheduled ? " scheduled" : "");
+  if (m.id !== undefined) wrap.dataset.msgId = String(m.id);
   const bubble = document.createElement("div");
   bubble.className = "bubble";
   wrap.appendChild(bubble);
@@ -1006,7 +1023,7 @@ function renderWelcomeState() {
   const wrap = document.createElement("div");
   wrap.className = "welcome-state";
   wrap.innerHTML =
-    '<div class="welcome-avatar"></div>' +
+    '<div class="pet-hero" aria-hidden="true"></div>' +
     '<h2 class="welcome-title">你好，我是膳待家</h2>' +
     '<p class="welcome-subtitle">膳食、待在家、管家——我在你家掌管吃与练：规划饮食、记录运动、分析营养，还能根据冰箱里的食材推荐菜谱。试试问我点什么？</p>' +
     '<div class="welcome-chips">' +
@@ -1016,6 +1033,9 @@ function renderWelcomeState() {
       '<button class="welcome-chip" data-prompt="分析一下我最近的饮食习惯">📊 饮食习惯分析</button>' +
     "</div>";
   messages.appendChild(wrap);
+  // 欢迎页的大团团（不可拖拽，只播 idle 呼吸）
+  const heroEl = wrap.querySelector(".pet-hero");
+  if (heroEl && window.UmamiPet) window.UmamiPet.create(heroEl, { draggable: false });
   // 绑定快捷提问
   wrap.querySelectorAll(".welcome-chip").forEach((chip) => {
     chip.addEventListener("click", () => {
@@ -1141,7 +1161,6 @@ async function saveSkillToggle(skillId, enabled) {
     { cls: "deco-item deco-leaf-2", svg: '<svg viewBox="0 0 48 48" width="52" height="52" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M24 10C30 7 38 12 40 20c2 8-2 18-8 22-4 2-8-2-8-8s2-10 0-24z"/></svg>' },
     { cls: "deco-item deco-leaf-3", svg: '<svg viewBox="0 0 48 48" width="56" height="56" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M16 32c4 3 10 4 14 2s6-8 4-14-2-8-8-10-14-6-4 4-8 10-4 22z"/></svg>' },
     { cls: "deco-item deco-dish-1", svg: '<svg viewBox="0 0 48 48" width="60" height="60" fill="none" stroke="currentColor" stroke-width="1.2"><ellipse cx="24" cy="28" rx="16" ry="10"/><path d="M8 28h32"/><path d="M18 18v4"/><path d="M30 18v4"/></svg>' },
-    { cls: "deco-item deco-dish-2", svg: '<svg viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="24" cy="24" r="14"/><circle cx="24" cy="24" r="6"/></svg>' },
   ];
   for (const item of items) {
     const el = document.createElement("div");
@@ -3437,6 +3456,230 @@ if (habitsAdd) habitsAdd.addEventListener("click", () => {
   closeModal(habitsModal);
   openAddCardWithType("habits");
 });
+
+// ---- 自动化中心（定时任务） ----
+const schedulesModal = document.getElementById("schedules-modal");
+const schedulesList = document.getElementById("schedules-list");
+const schedulesStatus = document.getElementById("schedules-status");
+const schedulesBtn = document.getElementById("schedules-btn");
+const schedulesClose = document.getElementById("schedules-close");
+const scheduleForm = document.getElementById("schedule-form");
+const scheduleTypeSelect = document.getElementById("schedule-type");
+const scheduleWeekdays = document.getElementById("schedule-weekdays");
+const scheduleDateInput = document.getElementById("schedule-date");
+
+const WEEKDAY_NAMES = { 1: "周一", 2: "周二", 3: "周三", 4: "周四", 5: "周五", 6: "周六", 7: "周日" };
+
+// next_fire_at 是 UTC "YYYY-MM-DD HH:MM:SS"，转本地时间展示
+function formatUtcStamp(stamp) {
+  const d = new Date(String(stamp).replace(" ", "T") + "Z");
+  if (isNaN(d.getTime())) return String(stamp);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function scheduleHint(s) {
+  const time = s.time_of_day || "";
+  if (s.schedule_type === "weekly") return `每周 ${(s.weekdays || []).map((d) => WEEKDAY_NAMES[d] || d).join("、")} ${time}`;
+  if (s.schedule_type === "once") return `${s.fire_date || "今天"} ${time}（仅一次）`;
+  return `每天 ${time}`;
+}
+
+function openSchedulesModal() { openModal(schedulesModal); loadSchedules(); }
+if (schedulesBtn) schedulesBtn.addEventListener("click", openSchedulesModal);
+if (schedulesClose) schedulesClose.addEventListener("click", () => closeModal(schedulesModal));
+
+async function loadSchedules() {
+  schedulesList.innerHTML = '<div class="loading-spinner"></div>';
+  try {
+    const list = await apiRequest("/api/v1/schedules");
+    renderSchedules(Array.isArray(list) ? list : []);
+  } catch (e) {
+    schedulesList.innerHTML = '<div class="fh-empty">加载失败：' + escapeHtml(e.message) + "</div>";
+  }
+}
+
+function renderSchedules(list) {
+  schedulesList.innerHTML = "";
+  if (!list.length) {
+    schedulesList.innerHTML = '<div class="fh-empty">还没有定时任务。用下面的表单创建，或直接告诉 AI「每天晚上六点提醒我吃晚饭」。</div>';
+    return;
+  }
+  for (const s of list) {
+    const row = document.createElement("div");
+    row.className = "manage-row" + (s.enabled ? "" : " is-off");
+    const main = document.createElement("div");
+    main.className = "manage-main";
+    const title = document.createElement("div");
+    title.className = "manage-title";
+    title.textContent = s.title || "未命名任务";
+    const sub = document.createElement("div");
+    sub.className = "manage-sub";
+    sub.textContent = [scheduleHint(s), s.next_fire_at ? `下次 ${formatUtcStamp(s.next_fire_at)}` : "已完成"].filter(Boolean).join(" · ");
+    main.appendChild(title);
+    main.appendChild(sub);
+
+    const ctrl = document.createElement("div");
+    ctrl.className = "manage-ctrl";
+    const toggle = document.createElement("input");
+    toggle.type = "checkbox";
+    toggle.className = "skill-toggle";
+    toggle.checked = !!s.enabled;
+    toggle.setAttribute("aria-label", `启用任务：${s.title || "未命名任务"}`);
+    toggle.addEventListener("change", () => toggleSchedule(s, toggle));
+    const del = document.createElement("button");
+    del.className = "danger-btn";
+    del.textContent = "删除";
+    del.addEventListener("click", () => deleteSchedule(s));
+    ctrl.appendChild(toggle);
+    ctrl.appendChild(del);
+
+    row.appendChild(main);
+    row.appendChild(ctrl);
+    schedulesList.appendChild(row);
+  }
+}
+
+async function toggleSchedule(s, toggle) {
+  try {
+    await apiRequest(`/api/v1/schedules/${s.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: toggle.checked ? 1 : 0 }),
+    });
+    showAppStatus(toggle.checked ? "任务已启用" : "任务已停用", true);
+    loadSchedules();
+  } catch (e) {
+    showAppStatus("操作失败：" + e.message);
+    toggle.checked = !toggle.checked;
+  }
+}
+
+async function deleteSchedule(s) {
+  if (!confirm(`删除定时任务「${s.title || "未命名任务"}」？`)) return;
+  try {
+    await apiRequest(`/api/v1/schedules/${s.id}`, { method: "DELETE" });
+    showAppStatus("定时任务已删除", true);
+    loadSchedules();
+  } catch (e) {
+    showAppStatus("删除失败：" + e.message);
+  }
+}
+
+function setSchedulesStatus(message, ok) {
+  if (!schedulesStatus) return;
+  schedulesStatus.textContent = message;
+  schedulesStatus.className = "settings-status " + (ok ? "ok" : "err");
+}
+
+function syncScheduleFormFields() {
+  if (!scheduleTypeSelect) return;
+  const type = scheduleTypeSelect.value;
+  scheduleWeekdays.classList.toggle("hidden", type !== "weekly");
+  scheduleDateInput.classList.toggle("hidden", type !== "once");
+}
+if (scheduleTypeSelect) scheduleTypeSelect.addEventListener("change", syncScheduleFormFields);
+syncScheduleFormFields();
+if (scheduleWeekdays) scheduleWeekdays.addEventListener("click", (e) => {
+  const btn = e.target.closest(".weekday-btn");
+  if (btn) btn.classList.toggle("active");
+});
+
+if (scheduleForm) scheduleForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const title = document.getElementById("schedule-title").value.trim();
+  const message = document.getElementById("schedule-message").value.trim();
+  const time = document.getElementById("schedule-time").value;
+  const type = scheduleTypeSelect.value;
+  const weekdays = [...scheduleWeekdays.querySelectorAll(".weekday-btn.active")].map((b) => Number(b.dataset.day));
+  const fireDate = scheduleDateInput.value || null;
+  if (!title || !message) return setSchedulesStatus("请填写任务名称与提醒内容");
+  if (!time) return setSchedulesStatus("请选择触发时间");
+  if (type === "weekly" && !weekdays.length) return setSchedulesStatus("每周任务请至少选择一个周几");
+  if (type === "once" && !fireDate) return setSchedulesStatus("仅一次的任务请选择日期");
+  try {
+    await apiRequest("/api/v1/schedules", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title,
+        message,
+        schedule_type: type,
+        time_of_day: time,
+        ...(type === "weekly" ? { weekdays } : {}),
+        ...(type === "once" ? { fire_date: fireDate } : {}),
+      }),
+    });
+    setSchedulesStatus("已创建", true);
+    showAppStatus("定时任务已创建", true);
+    scheduleForm.reset();
+    document.getElementById("schedule-time").value = "18:00";
+    scheduleWeekdays.querySelectorAll(".weekday-btn.active").forEach((b) => b.classList.remove("active"));
+    syncScheduleFormFields();
+    loadSchedules();
+  } catch (err) {
+    setSchedulesStatus("创建失败：" + err.message);
+  }
+});
+
+// ---- 全局事件流：定时任务触发推送 ----
+// 定时提醒到达当前会话时安静地追加新消息；其他会话只点亮红点。
+async function appendNewScheduledMessages(conversationId) {
+  if (conversationId !== currentConversationId) return;
+  try {
+    const list = await apiRequest(`/api/v1/conversations/${conversationId}/messages?limit=6`);
+    const items = Array.isArray(list) ? list : [];
+    const known = new Set([...messages.querySelectorAll(".msg")].map((el) => el.dataset.msgId).filter(Boolean));
+    let appended = false;
+    for (const m of items) {
+      if (known.has(String(m.id))) continue;
+      const node = createMessageNode(m);
+      if (node) { node.dataset.msgId = String(m.id); messages.appendChild(node); appended = true; }
+    }
+    if (appended) scrollBottom();
+  } catch { /* 静默降级 */ }
+}
+
+function initScheduleEvents() {
+  if (typeof EventSource === "undefined") return;
+  try {
+    const source = new EventSource("/api/v1/events");
+    source.addEventListener("schedule_fired", (e) => {
+      let payload = null;
+      try { payload = JSON.parse(e.data); } catch { return; }
+      if (!payload) return;
+      showAppStatus(`⏰ ${payload.title || "定时提醒"} 已触发`, true);
+      if (window.__umamiPet) window.__umamiPet.setState("waving");
+      if (payload.conversationId && payload.conversationId !== currentConversationId) {
+        reminderConversations.add(payload.conversationId);
+        renderConversationList();
+      } else if (payload.conversationId) {
+        appendNewScheduledMessages(payload.conversationId);
+      }
+    });
+  } catch { /* 事件流不可用时静默降级 */ }
+}
+initScheduleEvents();
+
+// ---- 成功反馈涟漪：确认/保存成功时从操作点扩散一圈品牌绿 ----
+function spawnSuccessRipple(x, y) {
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const dot = document.createElement("span");
+  dot.className = "success-ripple";
+  dot.setAttribute("aria-hidden", "true");
+  if (typeof x === "number" && typeof y === "number") { dot.style.left = x + "px"; dot.style.top = y + "px"; }
+  else { dot.style.left = window.innerWidth / 2 + "px"; dot.style.top = window.innerHeight * 0.4 + "px"; }
+  document.body.appendChild(dot);
+  setTimeout(() => dot.remove(), 700);
+}
+
+// ---- 时段氛围色调：晨/午/晚/夜切换极光基色（只写 CSS 变量，零动画开销） ----
+(function initDayPhase() {
+  const phaseFor = (h) => (h >= 5 && h < 11 ? "morning" : h >= 11 && h < 18 ? "day" : h >= 18 && h < 23 ? "evening" : "night");
+  const apply = () => document.documentElement.setAttribute("data-dayphase", phaseFor(new Date().getHours()));
+  apply();
+  setInterval(apply, 60_000);
+})();
 
 // ---- 数据导出 ----
 const exportBtn = document.getElementById("export-btn");

@@ -10,7 +10,7 @@
 
 「膳待家」就是为程序员（以及所有久坐的人）做的健康管家。基于 pi-agent 构建，`bun run dev` 一键启动、打开浏览器即用：拍一下冰箱帮你出菜谱，聊两句帮你排训练，随手记体重、打卡喝水睡觉。所有数据都存在本地 SQLite，不注册、不上传，隐私归你自己。
 
-项目目前处于 **v0.1** 阶段，功能还在快速打磨中，难免粗糙——欢迎指正、提意见（Issue / PR 都欢迎）。希望它能陪你做一个更健康的程序员。
+项目目前处于 **v3.0** 阶段，功能还在快速打磨中，难免粗糙——欢迎指正、提意见（Issue / PR 都欢迎）。希望它能陪你做一个更健康的程序员。
 
 ## 功能特性
 
@@ -20,6 +20,9 @@
 - 📏 **身体数据追踪**：记录体重/体脂，追踪减脂增肌进度
 - 🎯 **目标管理**：减脂、增肌、睡眠、饮水等目标设置与状态跟踪
 - 💧 **习惯打卡**：睡眠、饮水、心态等日常习惯记录
+- ⏰ **定时任务/自动化**：聊天里说「每天晚上六点提醒我吃晚饭」即可建任务，到点提醒自动写进会话并由 AI 回应，支持每天/每周/单次与启停管理
+- 🍙 **桌宠「团团」**：饭团小厨吉祥物常驻聊天区，会打瞌睡、陪你等 AI 回复、为确认成功欢呼，可拖拽逗弄（改写自 MIT 开源的 [dsh-kun-like-pet](https://github.com/liyupi/dsh-kun-like-pet) 引擎，精灵图见 `tools/pet-atlas/` 的确定性生成管线）
+- 🌅 **动态氛围**：AI 思考时极光呼吸加速、操作成功涟漪反馈、晨昏时段氛围色调（均支持 reduced-motion 降级）
 - ⭐ **收藏 / 📋 历史 / ⚙️ 偏好**：对话中即可管理
 - ✍️ **写操作确认**：食材/训练/身体/目标/习惯等写操作先产出待确认提案，确认后才写入，支持取消与撤销
 - 💬 **多会话**：聊天按会话隔离，可新建 / 切换 / 删除历史会话
@@ -74,8 +77,9 @@ bun run dev
 ├── package.json
 ├── tsconfig.json
 ├── .env.example
+├── tools/pet-atlas/         # 团团精灵图的确定性生成管线（SVG 帧 → Playwright → Pillow）
 └── src/
-    ├── index.ts              # 入口：装配并启动
+    ├── index.ts              # 入口：装配并启动（含定时任务调度器）
     ├── config.ts             # 静态配置（端口/路径/模型 ID）
     ├── settings.ts           # 运行时模型设置 + 凭据存储适配
     ├── secrets.ts            # 密钥存储（Windows 凭据管理器 / 环境变量）
@@ -83,16 +87,18 @@ bun run dev
     ├── agent.ts              # Agent 组装
     ├── system-prompt.ts      # 膳待家人设
     ├── skills/               # Agent Skill（个性化推荐与健康安全边界）
-    ├── api-types.ts          # v1 API 通用类型（ApiResult / SSEEvent）
+    ├── api-types.ts          # v1 API 通用类型（ApiResult / SSEEvent，含 agent_state 与 schedule_fired）
     ├── prompts/nutrition.ts  # 营养分析提示词
-    ├── db/database.ts        # SQLite 数据层（14 张表 + 迁移）
-    ├── tools/                # Agent 工具（食材/收藏/历史/偏好/营养/训练/身体/目标/习惯）
+    ├── db/database.ts        # SQLite 数据层（17 张表 + 迁移，含 schedules）
+    ├── tools/                # Agent 工具（食材/收藏/历史/偏好/营养/训练/身体/目标/习惯/定时任务）
     └── server/
-        ├── server.ts         # Bun.serve + 设置接口
-        ├── api.ts            # v1 REST API（CRUD / 会话 / 动作确认）
-        ├── conversations.ts  # 会话 Agent 管理 + SSE 流式
+        ├── server.ts         # Bun.serve + 设置接口 + 全局事件流 /api/v1/events
+        ├── api.ts            # v1 REST API（CRUD / 会话 / 动作确认 / schedules）
+        ├── conversations.ts  # 会话 Agent 管理 + SSE 流式 + 定时提醒写入
+        ├── scheduler.ts      # 定时任务调度器（到期扫描 → 会话提醒 → 事件广播）
+        ├── events.ts         # 服务端事件总线（定时任务等跨请求事件）
         ├── errors.ts         # 错误信息脱敏
-        └── static/           # 聊天前端 + 设置面板 + 会话栏
+        └── static/           # 聊天前端 + 设置面板 + 会话栏 + 桌宠引擎（pet.js）
 ```
 
 ## 架构说明

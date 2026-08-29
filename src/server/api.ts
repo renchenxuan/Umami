@@ -1,5 +1,6 @@
-import type { RecipeDB } from "../db/database";
+import type { RecipeDB, ScheduleType } from "../db/database";
 import type { AgentActionStatus } from "../db/database";
+import { validateScheduleInput } from "../db/database";
 import type { ApiError, ApiResult } from "../api-types";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
@@ -152,6 +153,45 @@ export async function handleV1(req:Request,url:URL,db:RecipeDB):Promise<Response
         return success(db.getMessages(id,limit,before),requestId);
       }
       if(cm[2]&&req.method==="POST")return failure("METHOD_NOT_ALLOWED","请通过会话流式消息接口发送用户消息",requestId,405);
+    }
+    // 定时任务/自动化：独立于通用资源表（需要 next_fire_at 重算与硬删除语义）
+    // 请求体格式错误 → 422（ValidationError）；时间已过等状态冲突由存储层抛 RangeError → 409
+    const validateSchedule=(record:Record<string,unknown>)=>{try{validateScheduleInput(record)}catch(e){if(e instanceof RangeError)throw new ValidationError("schedule",e.message);throw e}};
+    const scheduleMatch=url.pathname.match(/^\/api\/v1\/schedules(?:\/(\d+))?$/);
+    if(scheduleMatch){
+      const id=scheduleMatch[1]?integer(scheduleMatch[1]):null;
+      if(scheduleMatch[1]&&!id)return failure("INVALID_ID","ID 无效",requestId);
+      if(req.method==="GET"&&!id)return success(db.getSchedules(),requestId);
+      if(req.method==="POST"&&!id){
+        const b=await readJson(req);
+        const weekdaysRaw=b.weekdays;
+        const record={title:text(b,"title",{required:true,max:120})!,message:text(b,"message",{required:true,max:2000})!,schedule_type:text(b,"schedule_type",{required:true,max:10})!,time_of_day:text(b,"time_of_day",{required:true,max:5})!,weekdays:Array.isArray(weekdaysRaw)?weekdaysRaw.map(v=>Number(v)):null,fire_date:date(b,"fire_date")??null};
+        validateSchedule(record);
+        const conversationId=num(b,"conversation_id",1,1e9)??db.getConversations()[0]?.id??db.createConversation("定时提醒");
+        const newId=db.createSchedule({conversationId,title:record.title,message:record.message,scheduleType:record.schedule_type as ScheduleType,timeOfDay:record.time_of_day,weekdays:record.weekdays,fireDate:record.fire_date});
+        return success(db.getSchedule(newId),requestId,201);
+      }
+      if(id&&req.method==="GET"){const schedule=db.getSchedule(id);return schedule?success(schedule,requestId):failure("NOT_FOUND","定时任务不存在",requestId,404)}
+      if(id&&req.method==="PATCH"){
+        const current=db.getSchedule(id);if(!current)return failure("NOT_FOUND","定时任务不存在",requestId,404);
+        const b=await readJson(req);
+        if(b.enabled!==undefined&&b.enabled!==0&&b.enabled!==1)throw new ValidationError("enabled","enabled 必须是 0 或 1");
+        const weekdaysRaw=b.weekdays;
+        const merged={title:text(b,"title",{max:120})??current.title,message:text(b,"message",{max:2000})??current.message,schedule_type:text(b,"schedule_type",{max:10})??current.schedule_type,time_of_day:text(b,"time_of_day",{max:5})??current.time_of_day,weekdays:weekdaysRaw!==undefined?(Array.isArray(weekdaysRaw)?weekdaysRaw.map(v=>Number(v)):null):current.weekdays,fire_date:b.fire_date===undefined?current.fire_date:date(b,"fire_date")};
+        validateSchedule(merged);
+        const patch:{title?:string;message?:string;schedule_type?:ScheduleType;time_of_day?:string;weekdays?:number[]|null;fire_date?:string|null;enabled?:number}={
+          title:b.title!==undefined?merged.title:undefined,
+          message:b.message!==undefined?merged.message:undefined,
+          schedule_type:b.schedule_type!==undefined?merged.schedule_type as ScheduleType:undefined,
+          time_of_day:b.time_of_day!==undefined?merged.time_of_day:undefined,
+          weekdays:weekdaysRaw!==undefined?merged.weekdays:undefined,
+          fire_date:b.fire_date!==undefined?merged.fire_date:undefined,
+          enabled:b.enabled,
+        };
+        try{db.updateSchedule(id,patch)}catch(e){if(e instanceof RangeError)return failure("ACTION_CONFLICT",e.message,requestId,409);throw e}
+        return success(db.getSchedule(id),requestId);
+      }
+      if(id&&req.method==="DELETE"){if(!db.deleteSchedule(id))return failure("NOT_FOUND","定时任务不存在",requestId,404);return success({id,deleted:true},requestId)}
     }
     const match=url.pathname.match(/^\/api\/v1\/([^/]+)(?:\/(\d+))?$/);if(match){const resource=resources(db)[match[1]!];if(resource){const id=match[2]?integer(match[2]):null;if(match[2]&&!id)return failure("INVALID_ID","ID 无效",requestId);
       if(req.method==="GET"){const value=id?resource.get(id):resource.list();if(id&&!value)return failure("NOT_FOUND","记录不存在",requestId,404);return success(value,requestId)}

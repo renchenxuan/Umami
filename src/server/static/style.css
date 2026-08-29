@@ -2662,7 +2662,7 @@ html {
   inset: 0;
   z-index: 80;
   pointer-events: none;
-  background: radial-gradient(460px circle at var(--mx) var(--my), rgba(52, 211, 153, 0.09), transparent 42%);
+  background: radial-gradient(320px circle at var(--mx) var(--my), rgba(52, 211, 153, 0.06), transparent 42%);
   mix-blend-mode: screen;
   opacity: 0;
   transition: opacity var(--dur) var(--ease);
@@ -3038,19 +3038,19 @@ button {
 
 .bg-decor .deco-item {
   position: absolute;
-  opacity: 0.09;
+  opacity: 0.06;
   will-change: transform;
 }
 
 [data-theme="dark"] .bg-decor .deco-item {
-  opacity: 0.07;
+  opacity: 0.05;
 }
 
-.deco-leaf-1 { top: 8%; left: 4%; animation: decoFloat1 22s ease-in-out infinite alternate; }
-.deco-leaf-2 { top: 60%; right: 6%; animation: decoFloat2 26s ease-in-out infinite alternate; }
-.deco-leaf-3 { bottom: 12%; left: 12%; animation: decoFloat3 19s ease-in-out infinite alternate; }
-.deco-dish-1 { top: 20%; right: 18%; animation: decoFloat1 24s ease-in-out infinite alternate-reverse; }
-.deco-dish-2 { bottom: 30%; left: 70%; animation: decoFloat2 21s ease-in-out infinite alternate; }
+.deco-leaf-1 { top: 8%; left: 4%; animation: decoFloat1 32s ease-in-out infinite alternate; }
+.deco-leaf-2 { top: 60%; right: 6%; animation: decoFloat2 38s ease-in-out infinite alternate; }
+.deco-leaf-3 { bottom: 12%; left: 12%; animation: decoFloat3 28s ease-in-out infinite alternate; }
+.deco-dish-1 { top: 20%; right: 18%; animation: decoFloat1 35s ease-in-out infinite alternate-reverse; }
+.deco-dish-2 { bottom: 30%; left: 70%; animation: decoFloat2 30s ease-in-out infinite alternate; }
 
 @keyframes decoFloat1 {
   0%   { transform: translate(0, 0) rotate(-4deg); }
@@ -3680,3 +3680,219 @@ button {
   .settings-actions { flex-wrap: wrap; }
   .settings-export { flex-direction: column; align-items: flex-start; }
 }
+
+/* ===================== 自动化中心（定时任务） ===================== */
+.schedules-subhead {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 6px 0 10px;
+}
+
+.schedule-form { display: flex; flex-direction: column; gap: 10px; }
+
+.weekday-picker { display: flex; gap: 6px; }
+
+.weekday-btn {
+  flex: 1;
+  padding: 7px 0;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--fill);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+
+.weekday-btn:hover { border-color: var(--emerald-bright); color: var(--text); }
+
+.weekday-btn.active {
+  background: var(--fill-deep);
+  border-color: var(--emerald-bright);
+  color: var(--emerald);
+}
+
+.manage-row.is-off .manage-title,
+.manage-row.is-off .manage-sub { color: var(--faint); }
+
+/* 会话列表的定时提醒红点 */
+.conversation-item.has-reminder .conversation-title::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 7px;
+  border-radius: 50%;
+  background: var(--emerald-bright);
+  box-shadow: 0 0 0 3px var(--mint);
+  vertical-align: middle;
+}
+
+/* 定时任务触发的消息：品牌绿描边 + 顶部时钟标记 */
+.msg.scheduled .bubble {
+  border: 1px solid var(--emerald-bright);
+  box-shadow: 0 0 0 3px var(--mint);
+}
+
+.msg.scheduled .bubble::before {
+  content: "⏰ 定时任务";
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--emerald);
+  margin-bottom: 6px;
+  letter-spacing: 0.04em;
+}
+
+/* ===================== C1：AI 运行时的呼吸极光 ===================== */
+/* agent_start/agent_end → body[data-ai-state]；只改已注册的 @property 颜色与动画时长，
+   复用既有的 1.2s 颜色过渡，零新增重绘成本。置于分区色规则之后以覆盖板块色。 */
+body[data-ai-state="thinking"] {
+  --aurora-speed: 14s;
+  --aurora-1: rgba(52, 211, 153, 0.24);
+  --aurora-2: rgba(111, 200, 170, 0.2);
+  --aurora-3: rgba(52, 211, 153, 0.14);
+}
+
+[data-theme="dark"] body[data-ai-state="thinking"] {
+  --aurora-1: rgba(52, 211, 153, 0.28);
+  --aurora-2: rgba(110, 231, 183, 0.22);
+  --aurora-3: rgba(52, 211, 153, 0.16);
+}
+
+body[data-ai-state="thinking"] .bg-aurora {
+  animation-duration: var(--aurora-speed, 26s);
+}
+
+/* ===================== C2：成功反馈涟漪 ===================== */
+.success-ripple {
+  position: fixed;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  border: 2px solid var(--emerald-bright);
+  box-shadow: 0 0 0 2px var(--mint);
+  pointer-events: none;
+  z-index: 90;
+  animation: successRipple 0.65s var(--ease) forwards;
+}
+
+@keyframes successRipple {
+  from { transform: scale(1); opacity: 0.9; }
+  to { transform: scale(13); opacity: 0; }
+}
+
+/* ===================== C3：时段氛围色调（晨/午/晚/夜） ===================== */
+/* 只在 html[data-dayphase] 上覆写极光基色；正午保持默认无需规则。 */
+html[data-dayphase="morning"] body {
+  --aurora-1: rgba(134, 196, 148, 0.15);
+  --aurora-2: rgba(226, 196, 128, 0.13);
+  --aurora-3: rgba(84, 158, 118, 0.09);
+}
+
+html[data-dayphase="evening"] body {
+  --aurora-1: rgba(214, 152, 104, 0.14);
+  --aurora-2: rgba(178, 158, 108, 0.11);
+  --aurora-3: rgba(120, 96, 66, 0.09);
+}
+
+html[data-dayphase="night"] body {
+  --aurora-1: rgba(52, 132, 122, 0.1);
+  --aurora-2: rgba(74, 118, 152, 0.1);
+  --aurora-3: rgba(30, 78, 82, 0.1);
+}
+
+[data-theme="dark"] html[data-dayphase="morning"] body,
+html[data-dayphase="morning"] [data-theme="dark"] body {
+  --aurora-1: rgba(134, 196, 148, 0.17);
+  --aurora-2: rgba(226, 196, 128, 0.14);
+}
+
+[data-theme="dark"] html[data-dayphase="evening"] body,
+html[data-dayphase="evening"] [data-theme="dark"] body {
+  --aurora-1: rgba(214, 152, 104, 0.16);
+  --aurora-2: rgba(178, 158, 108, 0.13);
+}
+
+/* ===================== 宠物吉祥物「团团」 ===================== */
+.pet-sprite {
+  image-rendering: auto;
+  pointer-events: auto;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* 聊天区右下角常驻的小团团（悬在输入区上方，仅对话视图显示） */
+.pet-companion {
+  position: fixed;
+  right: 18px;
+  bottom: 104px;
+  width: 76px;
+  height: 82px;
+  z-index: 60;
+  filter: drop-shadow(0 4px 10px rgba(12, 58, 43, 0.18));
+  transition: transform var(--dur) var(--ease);
+}
+
+.pet-companion:hover { transform: scale(1.06); }
+
+body:not([data-view="chat"]) .pet-companion { display: none; }
+
+/* 浅色主题下白胖饭团需要一点轮廓才不会被背景吃掉 */
+[data-theme="light"] .pet-companion { filter: drop-shadow(0 4px 10px rgba(12, 58, 43, 0.2)) drop-shadow(0 0 1px rgba(12, 58, 43, 0.25)); }
+
+/* 说话气泡 */
+.pet-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  margin-bottom: 10px;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.96);
+  color: #333;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 5px 11px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.pet-bubble::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: rgba(255, 255, 255, 0.96);
+}
+
+/* 欢迎页的大团团（替代静态头像位） */
+.pet-hero {
+  width: 128px;
+  height: 139px;
+  margin: 0 auto 6px;
+  filter: drop-shadow(0 8px 22px rgba(12, 58, 43, 0.2));
+}
+
+@media (max-width: 768px) {
+  .pet-companion { right: 12px; bottom: 96px; width: 62px; height: 67px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-companion,
+  .pet-hero { display: none !important; }
+  .success-ripple { display: none !important; }
+}
+
+/* 表单分区的显式隐藏（.weekday-picker 的 display:flex 会覆盖通用 .hidden） */
+.weekday-picker.hidden { display: none; }
+.schedule-form .field.hidden { display: none; }

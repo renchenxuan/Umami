@@ -6,6 +6,7 @@ import { ALL_MODELS, THINKING_LEVELS, type SettingsStore } from "../settings";
 import { buildTemporaryCustomModels, getModelByName, listModelCatalog, registerCustomProvider, type ModelsCollection } from "../models";
 import { handleV1, MAX_JSON_BYTES, validateCustomBaseUrl } from "./api";
 import { ConversationAgentManager, type ConversationAgentFactory } from "./conversations";
+import { subscribeServerEvents } from "./events";
 import { safeProviderMessage } from "./errors";
 export { safeProviderMessage } from "./errors";
 import { listSkillMeta } from "../skills";
@@ -22,6 +23,7 @@ const MIME: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
 };
 
 async function parseJson<T>(req: Request): Promise<T> {
@@ -73,7 +75,7 @@ export function startServer(
   db: RecipeDB,
   settings: SettingsStore,
   models: ModelsCollection,
-  options:{port?:number;conversationAgentFactory?:ConversationAgentFactory}={},
+  options:{port?:number;conversationAgentFactory?:ConversationAgentFactory;onReady?:(context:{conversationAgents:ConversationAgentManager})=>void}={},
 ): ReturnType<typeof Bun.serve> {
   const conversationAgents=new ConversationAgentManager(db,settings,models,options.conversationAgentFactory??(()=>agent));
 
@@ -223,6 +225,30 @@ export function startServer(
         return conversationAgents.response(req,conversationId);
       }
 
+      // 全局事件流（长驻 SSE）：定时任务触发等与单个请求无关的服务端事件
+      if (req.method === "GET" && url.pathname === "/api/v1/events") {
+        const encoder = new TextEncoder();
+        let heartbeat: ReturnType<typeof setInterval> | undefined;
+        let unsubscribe: (() => void) | undefined;
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            let closed = false;
+            const write = (chunk: string) => {
+              if (closed) return;
+              try { controller.enqueue(encoder.encode(chunk)); } catch { closed = true; }
+            };
+            write(": connected\n\n");
+            unsubscribe = subscribeServerEvents((event) => write(`data: ${JSON.stringify(event)}\n\n`));
+            heartbeat = setInterval(() => write(": heartbeat\n\n"), 15_000);
+          },
+          cancel() {
+            clearInterval(heartbeat);
+            unsubscribe?.();
+          },
+        });
+        return new Response(stream, { headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-store", "Connection": "keep-alive" } });
+      }
+
       // 个性化推荐：根据身体数据 + 目标 + 偏好生成每日/每周食谱与运动计划
       if (req.method === "POST" && url.pathname === "/api/v1/recommendations") {
         const requestId = crypto.randomUUID();
@@ -329,5 +355,6 @@ export function startServer(
   });
 
   console.log(`✅ 服务已启动：http://127.0.0.1:${server.port}`);
+  options.onReady?.({ conversationAgents });
   return server;
 }

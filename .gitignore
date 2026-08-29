@@ -31,3 +31,8 @@ verify-*.png
 # 编辑器/工具本地数据
 .codebuddy/
 .workbuddy/
+.zcode/
+
+# 桌宠资产生成本地产物（venv 与工作目录；最终 spritesheet 已提交到 src/server/static/pet/）
+.pet-run/
+.pet-run-venv/

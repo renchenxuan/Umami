@@ -16,7 +16,7 @@ describe("v1 API",()=>{
   });
   test("validates health ranges",async()=>{const out=await call("/api/v1/body-metrics",{method:"POST",body:JSON.stringify({date:"2026-08-26",weight_kg:5})});expect(out.res.status).toBe(422);expect(out.body.error.code).toBe("VALIDATION_ERROR")});
   test("lists paged persisted messages while POST is reserved for the streaming server",async()=>{const c=await call("/api/v1/conversations",{method:"POST",body:JSON.stringify({title:"测试"})});const id=c.body.data.id;db!.addMessage(id,"user","你好");const list=await call(`/api/v1/conversations/${id}/messages`);expect(list.body.data).toHaveLength(1);expect(list.body.data[0].content).toBe("你好");const direct=await call(`/api/v1/conversations/${id}/messages`,{method:"POST",body:JSON.stringify({content:"绕过流式接口"})});expect(direct.res.status).toBe(405)});
-  test("healthz exposes schema status",async()=>{const out=await call("/api/v1/healthz");expect(out.body.data).toEqual({status:"ok",database:"ok",schemaVersion:8})});
+  test("healthz exposes schema status",async()=>{const out=await call("/api/v1/healthz");expect(out.body.data).toEqual({status:"ok",database:"ok",schemaVersion:9})});
   test("searches foods and performs diet-log CRUD",async()=>{
     const allFoods=await call("/api/v1/foods");expect(allFoods.body.data.length).toBeGreaterThan(100);
     const foods=await call("/api/v1/foods?q=番茄");expect(foods.body.data.length).toBeGreaterThan(0);expect(foods.body.data[0].emoji).toBe("🍅");

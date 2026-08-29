@@ -20,6 +20,8 @@ export type SSEEvent =
   | { type: "tool_status"; phase: "start" | "update" | "end"; name: string; isError?: boolean }
   | { type: "action_proposed"; action: AgentActionProposal }
   | { type: "action_committed"; action: AgentActionProposal }
+  | { type: "agent_state"; active: boolean }
+  | { type: "schedule_fired"; scheduleId: number; conversationId: number; title: string }
   | { type: "done"; messageId?: number; usage?: StreamUsage }
   | { type: "error"; code: string; message: string };
 

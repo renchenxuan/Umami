@@ -45,11 +45,12 @@ export function buildAnalysisUserPrompt(profile: AnalysisProfile): string {
   lines.push(`请给我一份${profile.period === "daily" ? "每日" : "每周"}健康分析。`);
   if (profile.dietLogs.length) {
     lines.push(
-      "饮食记录：" +
+      "饮食记录（热量为系统按内置营养库估算的值）：" +
         profile.dietLogs
           .map((d) => {
             const names = Array.isArray(d.foods) ? (d.foods as Array<{ name?: string }>).map((f) => f?.name).filter(Boolean).join("、") : "";
-            return `${d.date} ${d.meal_type}：${names || "无"}`;
+            const kcal = d.total_kcal != null ? `，约 ${d.total_kcal} 千卡` : "";
+            return `${d.date} ${d.meal_type}：${names || "无"}${kcal}`;
           })
           .join("；"),
     );

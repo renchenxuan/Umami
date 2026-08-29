@@ -1,6 +1,7 @@
 import type { RecipeDB, ScheduleType } from "../db/database";
 import type { AgentActionStatus } from "../db/database";
 import { validateScheduleInput } from "../db/database";
+import { buildDietSummary } from "./diet-summary";
 import type { ApiError, ApiResult } from "../api-types";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
@@ -107,6 +108,7 @@ export async function handleV1(req:Request,url:URL,db:RecipeDB):Promise<Response
     if(req.method==="GET"&&url.pathname==="/api/v1/foods"){const q=url.searchParams.get("q")??"";const category=url.searchParams.get("category")??undefined;return success(db.searchFoods(q,category),requestId)}
     if(req.method==="GET"&&url.pathname==="/api/v1/food-categories")return success(db.getFoodCategories(),requestId);
     if(req.method==="GET"&&url.pathname==="/api/v1/recipe-history")return success(db.getRecipeHistory(),requestId);
+    if(req.method==="GET"&&url.pathname==="/api/v1/diet-summary")return success(buildDietSummary(db),requestId);
     if(req.method==="GET"&&url.pathname==="/api/v1/export"){const bundle=db.getExportBundle();return new Response(JSON.stringify({ok:true,data:bundle,requestId}),{headers:{"Content-Type":"application/json; charset=utf-8","Content-Disposition":`attachment; filename="health-data-${new Date().toISOString().slice(0,10)}.json"`}})}
     if(url.pathname==="/api/v1/fridge-settings"){
       if(req.method==="GET")return success(db.getFridgeSettings(),requestId);
@@ -114,7 +116,7 @@ export async function handleV1(req:Request,url:URL,db:RecipeDB):Promise<Response
     }
     if(url.pathname==="/api/v1/preferences"){
       if(req.method==="GET")return success(db.getPreferences(),requestId);
-      if(req.method==="PATCH"){const b=await readJson(req);const patch={people_count:num(b,"people_count",1,20)??undefined,taste_preference:text(b,"taste_preference",{max:200}),allergies:text(b,"allergies",{max:1000,allowEmpty:true}),cuisine_style:text(b,"cuisine_style",{max:120}),days:num(b,"days",1,31)??undefined,height_cm:num(b,"height_cm",80,250,{nullable:true}),age:num(b,"age",1,120,{nullable:true}),gender:text(b,"gender",{max:20,allowEmpty:true}),activity_level:text(b,"activity_level",{max:40,allowEmpty:true})};db.updatePreferences(patch);return success(db.getPreferences(),requestId)}
+      if(req.method==="PATCH"){const b=await readJson(req);const patch={people_count:num(b,"people_count",1,20)??undefined,taste_preference:text(b,"taste_preference",{max:200}),allergies:text(b,"allergies",{max:1000,allowEmpty:true}),cuisine_style:text(b,"cuisine_style",{max:120}),days:num(b,"days",1,31)??undefined,height_cm:num(b,"height_cm",80,250,{nullable:true}),age:num(b,"age",1,120,{nullable:true}),gender:text(b,"gender",{max:20,allowEmpty:true}),activity_level:text(b,"activity_level",{max:40,allowEmpty:true}),calorie_target:num(b,"calorie_target",800,6000,{nullable:true})??undefined};db.updatePreferences(patch);return success(db.getPreferences(),requestId)}
     }
     if(url.pathname==="/api/v1/conversations"){
       if(req.method==="GET")return success(db.getConversations(),requestId);

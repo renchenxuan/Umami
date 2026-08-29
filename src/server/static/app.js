@@ -160,6 +160,16 @@ function applyTheme(theme) {
   const saved = localStorage.getItem(THEME_KEY);
   applyTheme(saved === "light" ? "light" : "dark");
 })();
+
+// ---- 氛围效果（背景场景/粒子强度，按设备本地保存） ----
+const AMBIENT_KEY = "health_ambient";
+function applyAmbient(mode) {
+  const m = ["standard", "reduced", "off"].includes(mode) ? mode : "standard";
+  document.documentElement.dataset.ambient = m;
+  const sel = document.getElementById("ambient-select");
+  if (sel) sel.value = m;
+}
+applyAmbient(localStorage.getItem(AMBIENT_KEY));
 // 将主题偏好同步到服务端，实现跨设备一致。
 function syncThemeToServer(theme) {
   fetch("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uiTheme: theme }) }).catch(() => {});
@@ -632,9 +642,14 @@ function renderMarkdownToHtml(text) {
 
 function handleEvent(evt, bubble) {
   if (evt.type === "delta") {
+    if (bubble.classList.contains("typing")) {
+      bubble.classList.remove("typing");
+      bubble.innerHTML = "";
+    }
     const raw = (bubble.dataset.raw || "") + evt.text;
     bubble.dataset.raw = raw;
     bubble.innerHTML = renderMarkdownToHtml(raw);
+    bubble.classList.add("streaming");
     scrollBottom();
   } else if (evt.type === "tool_status") {
     const wrap = bubble.closest(".msg");
@@ -655,6 +670,7 @@ function handleEvent(evt, bubble) {
     if (evt.active) { if (window.__umamiPet) window.__umamiPet.setState("running"); }
     else if (window.__umamiPet) window.__umamiPet.setState("waving", { once: true });
   } else if (evt.type === "done") {
+    bubble.classList.remove("streaming");
     const wrap = bubble.closest(".msg");
     if (wrap && evt.usage && evt.usage.totalTokens) {
       const time = wrap.querySelector(".msg-time");
@@ -670,6 +686,8 @@ function handleEvent(evt, bubble) {
       else wrap.appendChild(usageEl);
     }
   } else if (evt.type === "error") {
+    bubble.classList.remove("streaming");
+    bubble.classList.remove("typing");
     bubble.textContent = "出错：" + evt.message;
     addRetryButton(bubble.closest(".msg"), true);
     if (window.__umamiPet) window.__umamiPet.setState("failed");
@@ -735,6 +753,7 @@ async function sendMessage(text, imagePayload, opts = {}) {
   if (welcome) welcome.remove();
 
   if (opts.echoUser !== false) {
+    ensureDayDivider();
     if (imagePayload) addImage(imagePayload.dataUrl);
     if (text) {
       const b = addBubble("user");
@@ -743,6 +762,8 @@ async function sendMessage(text, imagePayload, opts = {}) {
   }
 
   const bubble = addBubble("assistant");
+  bubble.classList.add("typing");
+  bubble.innerHTML = '<span class="typing-dots" role="status" aria-label="AI 正在思考"><i></i><i></i><i></i></span>';
 
   try {
     const res = await fetch(`/api/v1/conversations/${currentConversationId}/messages`, {
@@ -791,6 +812,7 @@ async function sendMessage(text, imagePayload, opts = {}) {
     // 会话第一条消息发送成功后，用消息内容自动命名。
     if (wasEmpty && text) autoTitleConversation(currentConversationId, text);
   } catch (e) {
+    bubble.classList.remove("typing", "streaming");
     if (controller.signal.aborted) {
       const note = document.createElement("div");
       note.className = "msg-stopped";
@@ -842,36 +864,119 @@ input.addEventListener("keydown", (e) => {
   }
 });
 
+// 输入区快捷条：填入常用指令（不自动发送，方便用户补全）
+document.querySelectorAll(".quick-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    if (!input || sending) return;
+    input.value = chip.getAttribute("data-prompt") || "";
+    input.focus();
+  });
+});
+
 // ---- 会话管理 ----
+const conversationSearch = document.getElementById("conversation-search");
+let conversationFilter = "";
+if (conversationSearch) conversationSearch.addEventListener("input", () => {
+  conversationFilter = conversationSearch.value.trim().toLowerCase();
+  renderConversationList();
+});
+
+// created_at/updated_at 为 UTC "YYYY-MM-DD HH:MM:SS"；复用上方 parseDbTime（返回 Date）
+function dbTimeMs(value) {
+  const d = parseDbTime(value);
+  return d ? d.getTime() : null;
+}
+
+function relativeTime(value) {
+  const t = dbTimeMs(value);
+  if (t == null) return "";
+  const min = Math.floor((Date.now() - t) / 60000);
+  if (min < 1) return "刚刚";
+  if (min < 60) return `${min} 分钟前`;
+  if (min < 1440) return `${Math.floor(min / 60)} 小时前`;
+  if (min < 10080) return `${Math.floor(min / 1440)} 天前`;
+  return String(value).slice(0, 10);
+}
+
+function conversationGroup(value) {
+  const t = dbTimeMs(value);
+  if (t == null) return "更早";
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (t >= startOfToday) return "今天";
+  if (t >= startOfToday - 86400000) return "昨天";
+  if (t >= startOfToday - 6 * 86400000) return "本周";
+  return "更早";
+}
+
 function renderConversationList() {
   if (!conversationList) return;
   conversationList.innerHTML = "";
+  const groups = [["今天", []], ["昨天", []], ["本周", []], ["更早", []]];
   for (const c of conversations) {
-    const item = document.createElement("div");
-    item.className = "conversation-item" + (c.id === currentConversationId ? " active" : "");
-    if (reminderConversations.has(c.id)) item.classList.add("has-reminder");
-    item.dataset.id = c.id;
-
-    const title = document.createElement("span");
-    title.className = "conversation-title";
-    title.textContent = c.title || "新对话";
-    title.addEventListener("dblclick", () => startRenameConversation(c.id, title));
-
-    const del = document.createElement("button");
-    del.className = "conversation-delete";
-    del.textContent = "✕";
-    del.title = "删除会话";
-    del.setAttribute("aria-label", `删除会话：${c.title || "新对话"}`);
-    del.addEventListener("click", (e) => {
-      e.stopPropagation();
-      deleteConversation(c.id);
-    });
-
-    item.appendChild(title);
-    item.appendChild(del);
-    item.addEventListener("click", () => selectConversation(c.id));
-    conversationList.appendChild(item);
+    if (conversationFilter && !`${c.title || ""} ${c.last_message || ""}`.toLowerCase().includes(conversationFilter)) continue;
+    const bucket = groups.find(([name]) => name === conversationGroup(c.updated_at || c.created_at));
+    bucket[1].push(c);
   }
+  let rendered = 0;
+  for (const [name, list] of groups) {
+    if (!list.length) continue;
+    const header = document.createElement("div");
+    header.className = "conversation-group";
+    header.textContent = name;
+    conversationList.appendChild(header);
+    for (const c of list) {
+      rendered += 1;
+      const item = document.createElement("div");
+      item.className = "conversation-item" + (c.id === currentConversationId ? " active" : "");
+      if (reminderConversations.has(c.id)) item.classList.add("has-reminder");
+      item.dataset.id = c.id;
+
+      const avatar = document.createElement("span");
+      avatar.className = "conversation-avatar";
+      avatar.setAttribute("aria-hidden", "true");
+
+      const body = document.createElement("div");
+      body.className = "conversation-body";
+      const titleRow = document.createElement("div");
+      titleRow.className = "conversation-title-row";
+      const title = document.createElement("span");
+      title.className = "conversation-title";
+      title.textContent = c.title || "新对话";
+      title.addEventListener("dblclick", () => startRenameConversation(c.id, title));
+      const time = document.createElement("span");
+      time.className = "conversation-time";
+      time.textContent = relativeTime(c.updated_at || c.created_at);
+      titleRow.appendChild(title);
+      titleRow.appendChild(time);
+
+      const preview = document.createElement("div");
+      preview.className = "conversation-preview";
+      const previewText = String(c.last_message || "").replace(/\s+/g, " ").trim();
+      preview.textContent = previewText || "还没有消息";
+      if (reminderConversations.has(c.id)) preview.classList.add("unread");
+
+      body.appendChild(titleRow);
+      body.appendChild(preview);
+
+      const del = document.createElement("button");
+      del.className = "conversation-delete";
+      del.textContent = "✕";
+      del.title = "删除会话";
+      del.setAttribute("aria-label", `删除会话：${c.title || "新对话"}`);
+      del.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteConversation(c.id);
+      });
+
+      item.appendChild(avatar);
+      item.appendChild(body);
+      item.appendChild(del);
+      item.addEventListener("click", () => selectConversation(c.id));
+      conversationList.appendChild(item);
+    }
+  }
+  if (!rendered) conversationList.innerHTML = '<div class="fh-empty">' + (conversationFilter ? "没有匹配的会话" : "还没有会话") + "</div>";
 }
 
 async function createConversation() {
@@ -942,6 +1047,7 @@ const MSG_PAGE_SIZE = 30;
 
 async function renderMessages(id) {
   messages.innerHTML = "";
+  messages.dataset.lastDay = "";
   try {
     const list = await apiRequest(`/api/v1/conversations/${id}/messages?limit=${MSG_PAGE_SIZE}`);
     const items = Array.isArray(list) ? list : [];
@@ -976,8 +1082,40 @@ function createMessageNode(m) {
   return wrap;
 }
 
+// 日期分隔：同一天的消息只插一枚「今天/昨天/M月D日」胶囊
+function localDayString(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function dayLabelFromLocal(day) {
+  const now = new Date();
+  if (day === localDayString(now)) return "今天";
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (day === localDayString(yesterday)) return "昨天";
+  const [year, month, dateNum] = day.split("-").map(Number);
+  if (year === now.getFullYear()) return `${month} 月 ${dateNum} 日`;
+  return day;
+}
+
+function localDayFromDbTime(value) {
+  const t = parseDbTime(value);
+  return t == null ? null : localDayString(new Date(t));
+}
+
+function ensureDayDivider(dbTime) {
+  const day = dbTime ? localDayFromDbTime(dbTime) : localDayString();
+  if (!day || messages.dataset.lastDay === day) return;
+  messages.dataset.lastDay = day;
+  const divider = document.createElement("div");
+  divider.className = "day-divider";
+  divider.textContent = dayLabelFromLocal(day);
+  messages.appendChild(divider);
+}
+
 function appendHistoryMessages(items) {
   for (const m of items) {
+    ensureDayDivider(m.created_at);
     const node = createMessageNode(m);
     if (node) messages.appendChild(node);
   }
@@ -1167,6 +1305,65 @@ async function saveSkillToggle(skillId, enabled) {
     el.className = item.cls;
     el.innerHTML = item.svg;
     decor.appendChild(el);
+  }
+})();
+
+// ---- 厨房台面剪影场景（融入极光底部，随晨昏变灯光） ----
+(function initBgScene() {
+  if (document.documentElement.dataset.ambient === "off") return;
+  const scene = document.querySelector(".bg-scene");
+  if (!scene) return;
+  scene.innerHTML = [
+    '<svg viewBox="0 0 1440 160" preserveAspectRatio="xMidYMax slice" aria-hidden="true">',
+    // 吊灯：白天熄灭，晚间亮起暖光
+    '<line x1="1150" y1="0" x2="1150" y2="34" stroke="var(--scene-ink)" stroke-width="3"/>',
+    '<path d="M1126 34 L1174 34 L1186 62 L1114 62 Z" fill="var(--scene-ink)"/>',
+    '<circle cx="1150" cy="74" r="30" fill="var(--scene-glow)"/>',
+    // 汤锅
+    '<g fill="var(--scene-ink)"><path d="M225 80 q15 -12 30 0 l-4 8 q-11 -8 -22 0 Z"/><rect x="170" y="86" width="140" height="18" rx="9"/><ellipse cx="240" cy="112" rx="70" ry="22"/><rect x="306" y="92" width="54" height="9" rx="4.5"/></g>',
+    // 调料瓶罐
+    '<g fill="var(--scene-ink)"><rect x="482" y="46" width="14" height="12" rx="4"/><rect x="476" y="56" width="26" height="62" rx="8"/><rect x="522" y="60" width="8" height="10" rx="3"/><rect x="514" y="68" width="24" height="50" rx="8"/><rect x="552" y="72" width="30" height="46" rx="9"/></g>',
+    // 砧板与蔬果
+    '<g fill="var(--scene-ink)"><circle cx="742" cy="78" r="15"/><path d="M782 64 a13 13 0 1 0 0.1 0 Z"/><rect x="700" y="86" width="124" height="34" rx="8"/></g>',
+    // 绿植
+    '<g fill="var(--scene-ink)"><path d="M1082 120 l8 -28 h32 l8 28 Z"/><path d="M1102 92 C1088 66 1066 62 1054 70 C1066 86 1086 92 1102 92 Z"/><path d="M1102 92 C1116 64 1140 60 1152 68 C1140 86 1118 92 1102 92 Z"/><path d="M1100 92 C1096 64 1104 46 1114 38 C1124 56 1118 78 1100 92 Z"/></g>',
+    // 台面
+    '<rect x="0" y="118" width="1440" height="42" rx="4" fill="var(--scene-ink)"/>',
+    "</svg>",
+  ].join("");
+})();
+
+// ---- 蒸汽与光尘粒子（纯 CSS 动画，随机相位） ----
+(function initAmbientParticles() {
+  const mode = document.documentElement.dataset.ambient;
+  if (mode === "off" || mode === "reduced") return;
+  const steam = document.querySelector(".bg-steam");
+  if (steam) {
+    for (let i = 0; i < 7; i++) {
+      const s = document.createElement("span");
+      s.className = "steam-item";
+      s.style.left = 6 + Math.random() * 88 + "%";
+      s.style.setProperty("--size", 16 + Math.random() * 22 + "px");
+      s.style.setProperty("--dur", 10 + Math.random() * 9 + "s");
+      s.style.setProperty("--delay", -Math.random() * 16 + "s");
+      s.style.setProperty("--drift", Math.round(Math.random() * 60 - 30) + "px");
+      steam.appendChild(s);
+    }
+  }
+  const dust = document.querySelector(".bg-dust");
+  if (dust) {
+    for (let i = 0; i < 14; i++) {
+      const d = document.createElement("span");
+      d.className = "dust-item";
+      d.style.left = Math.random() * 100 + "%";
+      d.style.top = 30 + Math.random() * 68 + "%";
+      d.style.setProperty("--size", 2 + Math.random() * 2.5 + "px");
+      d.style.setProperty("--dur", 14 + Math.random() * 14 + "s");
+      d.style.setProperty("--delay", -Math.random() * 22 + "s");
+      d.style.setProperty("--drift", Math.round(Math.random() * 50 - 25) + "px");
+      d.style.setProperty("--peak", 0.18 + Math.random() * 0.25);
+      dust.appendChild(d);
+    }
   }
 })();
 
@@ -2434,10 +2631,80 @@ const dietList = document.getElementById("diet-list");
 async function loadDiet() {
   if (!dDate.value) dDate.value = todayISO();
   try {
-    const res = await fetch("/api/v1/diet-logs");
-    const data = await res.json();
-    renderDiet(data.ok ? (data.data || []) : []);
+    const [logsRes, summaryRes] = await Promise.all([fetch("/api/v1/diet-logs"), fetch("/api/v1/diet-summary")]);
+    const logsData = await logsRes.json();
+    let summary = null;
+    try { const s = await summaryRes.json(); if (s.ok) summary = s.data; } catch { /* 汇总失败不阻塞列表 */ }
+    renderDietSummary(summary);
+    renderDiet(logsData.ok ? (logsData.data || []) : []);
   } catch { renderListError(dietList); }
+}
+
+function renderDietSummary(summary) {
+  const wrap = document.getElementById("diet-summary");
+  if (!wrap) return;
+  if (!summary) { wrap.classList.add("hidden"); return; }
+  wrap.classList.remove("hidden");
+  const { today, week, target } = summary;
+  const targetKcal = target ? target.kcal : 2000;
+  const pct = targetKcal ? Math.min(1, today.total.kcal / targetKcal) : 0;
+  const ring = document.getElementById("diet-ring-fill");
+  const circumference = 2 * Math.PI * 52;
+  ring.style.strokeDasharray = `${circumference}`;
+  ring.style.strokeDashoffset = `${circumference * (1 - pct)}`;
+  ring.classList.toggle("over", today.total.kcal > targetKcal);
+  document.getElementById("diet-kcal-now").textContent = String(Math.round(today.total.kcal));
+  document.getElementById("diet-kcal-target").textContent = `/ ${targetKcal} 千卡` + (target && target.source === "auto" ? " · 估" : "");
+
+  const mealBars = document.getElementById("diet-meal-bars");
+  const mealOrder = ["早餐", "午餐", "晚餐", "加餐"];
+  const maxMeal = Math.max(1, ...mealOrder.map((m) => (today.meals[m] ? today.meals[m].kcal : 0)));
+  mealBars.innerHTML = "";
+  for (const m of mealOrder) {
+    const meal = today.meals[m];
+    const kcal = meal ? meal.kcal : 0;
+    const row = document.createElement("div");
+    row.className = "diet-meal-bar-row";
+    const label = document.createElement("span");
+    label.className = "diet-meal-bar-label";
+    label.textContent = m;
+    const track = document.createElement("div");
+    track.className = "diet-meal-bar-track";
+    const fill = document.createElement("div");
+    fill.className = "diet-meal-bar-fill";
+    fill.style.width = `${Math.round((kcal / maxMeal) * 100)}%`;
+    track.appendChild(fill);
+    const val = document.createElement("span");
+    val.className = "diet-meal-bar-val";
+    val.textContent = kcal ? `${Math.round(kcal)} 千卡` : "—";
+    row.append(label, track, val);
+    mealBars.appendChild(row);
+  }
+
+  const macros = document.getElementById("diet-macros");
+  macros.innerHTML = "";
+  for (const [label, value, unit] of [["蛋白质", today.total.protein, "g"], ["脂肪", today.total.fat, "g"], ["碳水", today.total.carb, "g"]]) {
+    const chip = document.createElement("span");
+    chip.className = "diet-macro-chip";
+    chip.textContent = `${label} ${Math.round(value * 10) / 10}${unit}`;
+    macros.appendChild(chip);
+  }
+
+  const trend = document.getElementById("diet-trend");
+  trend.innerHTML = "";
+  const maxWeek = Math.max(1, ...week.map((d) => d.kcal));
+  week.forEach((d, i) => {
+    const col = document.createElement("div");
+    col.className = "diet-trend-col";
+    const bar = document.createElement("div");
+    bar.className = "diet-trend-bar";
+    bar.style.height = `${Math.max(4, Math.round((d.kcal / maxWeek) * 44))}px`;
+    bar.title = `${d.date}：约 ${d.kcal} 千卡`;
+    const label = document.createElement("span");
+    label.textContent = i === week.length - 1 ? "今" : d.date.slice(8);
+    col.append(bar, label);
+    trend.appendChild(col);
+  });
 }
 
 function renderDiet(items) {
@@ -2452,7 +2719,27 @@ function renderDiet(items) {
     const main = document.createElement("div");
     main.className = "list-row-main";
     const names = Array.isArray(d.foods) ? d.foods.map((f) => f.name).filter(Boolean).join("、") : "";
-    main.textContent = `${d.date} ${d.meal_type}：${names || "无"}`;
+    const head = document.createElement("div");
+    head.className = "diet-row-head";
+    const title = document.createElement("span");
+    title.textContent = `${d.date} ${d.meal_type}：${names || "无"}`;
+    head.appendChild(title);
+    if (d.total_kcal != null) {
+      const badge = document.createElement("span");
+      badge.className = "kcal-badge";
+      badge.textContent = `约 ${d.total_kcal} 千卡`;
+      head.appendChild(badge);
+    }
+    main.appendChild(head);
+    const detail = Array.isArray(d.foods)
+      ? d.foods.filter((f) => f && f.kcal != null).map((f) => `${f.name}${f.quantity ? "(" + f.quantity + ")" : ""} ${f.kcal}千卡`).join(" · ")
+      : "";
+    if (detail) {
+      const sub = document.createElement("div");
+      sub.className = "list-row-sub";
+      sub.textContent = detail;
+      main.appendChild(sub);
+    }
     if (d.note) {
       const sub = document.createElement("div");
       sub.className = "list-row-sub";
@@ -3140,6 +3427,11 @@ settingsBtn.addEventListener("click", () => {
 
 settingsClose.addEventListener("click", () => closeModal(settingsModal));
 document.getElementById("theme-select").addEventListener("change", (e) => { applyTheme(e.target.value); syncThemeToServer(e.target.value); });
+document.getElementById("ambient-select").addEventListener("change", (e) => {
+  applyAmbient(e.target.value);
+  localStorage.setItem(AMBIENT_KEY, e.target.value);
+  showAppStatus(e.target.value === "off" ? "氛围效果已关闭" : e.target.value === "reduced" ? "氛围效果已减弱" : "氛围效果已恢复标准", true);
+});
 providerSelect.addEventListener("change", () => { renderKeyHint(); populateModelSelect(); });
 
 testBtn.addEventListener("click", async () => {
@@ -3633,6 +3925,7 @@ async function appendNewScheduledMessages(conversationId) {
     let appended = false;
     for (const m of items) {
       if (known.has(String(m.id))) continue;
+      ensureDayDivider(m.created_at);
       const node = createMessageNode(m);
       if (node) { node.dataset.msgId = String(m.id); messages.appendChild(node); appended = true; }
     }

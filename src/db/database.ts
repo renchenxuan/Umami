@@ -2,21 +2,21 @@ import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { basename, dirname, join, resolve } from "node:path";
-import { FOODS, FOOD_CATEGORIES, unitFor } from "./foods-data";
+import { FOODS, FOOD_CATEGORIES, unitFor, estimateItemNutrition, FOOD_NUTRITION } from "./foods-data";
 
 export interface Ingredient { id:number; name:string; quantity:string; category:string; source:string; zone:string; note:string|null; added_at:string; created_at:string; updated_at:string; archived_at:string|null }
 export interface FridgeSettings { freezerTemp:number; fridgeTemp:number }
 export interface Favorite { id:number; recipe_name:string; ingredients:unknown; steps:unknown; created_at:string }
 export interface RecipeHistory { id:number; title:string; model_used:string; week_plan:string; created_at:string }
-export interface Preferences { people_count:number; taste_preference:string; allergies:string; cuisine_style:string; days:number; height_cm:number|null; age:number|null; gender:string; activity_level:string }
+export interface Preferences { people_count:number; taste_preference:string; allergies:string; cuisine_style:string; days:number; height_cm:number|null; age:number|null; gender:string; activity_level:string; calorie_target:number|null }
 export interface Workout { id:number; date:string; activity_type:string; duration_min:number; detail:string; created_at:string; updated_at:string; archived_at:string|null }
 export interface BodyMetric { id:number; date:string; weight_kg:number; body_fat_pct:number|null; note:string; created_at:string; updated_at:string; archived_at:string|null }
 export interface HealthGoal { id:number; name:string; category:string; target:string; unit:string; status:string; target_value:number|null; current_value:number|null; start_date:string|null; end_date:string|null; created_at:string; updated_at:string; archived_at:string|null }
 export interface HabitLog { id:number; date:string; habit:string; value:string; created_at:string; updated_at:string; archived_at:string|null }
-export interface DietLog { id:number; date:string; meal_type:string; foods:unknown; note:string; created_at:string; updated_at:string; archived_at:string|null }
+export interface DietLog { id:number; date:string; meal_type:string; foods:unknown; note:string; total_kcal:number|null; created_at:string; updated_at:string; archived_at:string|null }
 export interface Recipe { id:number; title:string; ingredients:unknown; steps:unknown; nutrition_estimate:unknown; source:string; legacy_history_id:number|null; created_at:string; updated_at:string; archived_at:string|null }
 export interface ShoppingItem { id:number; name:string; quantity:string; checked:number; created_at:string; updated_at:string; archived_at:string|null }
-export interface Conversation { id:number; title:string; context:unknown; created_at:string; updated_at:string; archived_at:string|null }
+export interface Conversation { id:number; title:string; context:unknown; created_at:string; updated_at:string; archived_at:string|null; last_message?:string|null }
 export interface Message { id:number; conversation_id:number; role:"user"|"assistant"|"system"; content:string; metadata:unknown; created_at:string }
 export type AgentActionStatus="pending"|"confirmed"|"cancelled"|"undone";
 export interface AgentActionProposal { id:number; conversation_id:number|null; action_type:string; payload:unknown; status:AgentActionStatus; result:unknown; undo_payload:unknown; undo_available:boolean; created_at:string; updated_at:string }
@@ -26,7 +26,7 @@ export interface Schedule { id:number; conversation_id:number; title:string; mes
 type PatchValue = string|number|null|undefined;
 export const SECRET_SETTING_KEYS = ["openai_api_key","google_api_key","deepseek_api_key","moonshot_api_key","minimax_api_key","anthropic_api_key","dashscope_api_key","zhipu_api_key","custom_api_key"];
 const parseJson = (value:unknown):unknown => { if(typeof value!=="string"||!value) return value??null; try{return JSON.parse(value)}catch{return value} };
-const LATEST_SCHEMA_VERSION=9;
+const LATEST_SCHEMA_VERSION=10;
 const validDate=(value:string)=>{const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(value);const parsed=match?new Date(Date.UTC(Number(match[1]),Number(match[2])-1,Number(match[3]))):null;return!!match&&!!parsed&&parsed.toISOString().slice(0,10)===value};
 const requireText=(field:string,value:unknown,max:number)=>{if(typeof value!=="string"||!value.trim()||value.length>max)throw new RangeError(`${field} 必须是 1 到 ${max} 个字符`)};
 const requireDate=(field:string,value:unknown)=>{if(typeof value!=="string"||!validDate(value))throw new RangeError(`${field} 必须是有效的 YYYY-MM-DD 日期`)};
@@ -40,6 +40,7 @@ const validateDietFoods=(value:unknown)=>{
     if(!item||typeof item!=="object"||Array.isArray(item))throw new RangeError("foods 中的每一项必须是对象");
     const food=item as Record<string,unknown>;requireText("foods.name",food.name,120);
     if(food.quantity!==undefined&&food.quantity!==null&&(typeof food.quantity!=="string"||food.quantity.length>80))throw new RangeError("foods.quantity 必须是不超过 80 个字符的字符串");
+    if(food.kcal!==undefined&&food.kcal!==null&&(typeof food.kcal!=="number"||!Number.isFinite(food.kcal)||food.kcal<0||food.kcal>5000))throw new RangeError("foods.kcal 必须在 0 到 5000 之间");
   }
 };
 
@@ -217,6 +218,21 @@ export class RecipeDB {
         CREATE INDEX IF NOT EXISTS idx_schedules_due ON schedules(enabled,next_fire_at);
       `);
     });
+    // 营养量化：foods 按内置表回填每 100g 营养；饮食记录自动计算总热量；
+    // preferences.calorie_target 为手动覆盖值（空=按身体数据自动推算）。
+    run(10,"nutrition_layer",()=>{
+      this.addColumn("foods","kcal REAL");
+      this.addColumn("foods","protein REAL");
+      this.addColumn("foods","fat REAL");
+      this.addColumn("foods","carb REAL");
+      this.addColumn("diet_logs","total_kcal REAL");
+      this.addColumn("preferences","calorie_target INTEGER");
+      const upd=this.db.query("UPDATE foods SET kcal=?,protein=?,fat=?,carb=? WHERE name=?");
+      for(const f of FOODS){
+        const p=FOOD_NUTRITION[f.name];
+        if(p)upd.run(p.kcal,p.protein,p.fat,p.carb,f.name);
+      }
+    });
   }
   getMigrationVersion(){return Number((this.db.query("SELECT COALESCE(MAX(version),0) version FROM schema_migrations").get() as {version:number}).version)}
   getTableNames(){return (this.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all() as Array<{name:string}>).map(r=>r.name)}
@@ -259,17 +275,18 @@ export class RecipeDB {
     };
   }
 
-  getPreferences():Preferences{const r=this.db.query("SELECT * FROM preferences WHERE id=1").get() as Record<string,unknown>|null;return r?{people_count:Number(r.people_count),taste_preference:String(r.taste_preference),allergies:String(r.allergies),cuisine_style:String(r.cuisine_style),days:Number(r.days),height_cm:r.height_cm==null?null:Number(r.height_cm),age:r.age==null?null:Number(r.age),gender:String(r.gender??""),activity_level:String(r.activity_level??"久坐")}:{people_count:2,taste_preference:"家常",allergies:"",cuisine_style:"中餐",days:7,height_cm:null,age:null,gender:"",activity_level:"久坐"}}
+  getPreferences():Preferences{const r=this.db.query("SELECT * FROM preferences WHERE id=1").get() as Record<string,unknown>|null;return r?{people_count:Number(r.people_count),taste_preference:String(r.taste_preference),allergies:String(r.allergies),cuisine_style:String(r.cuisine_style),days:Number(r.days),height_cm:r.height_cm==null?null:Number(r.height_cm),age:r.age==null?null:Number(r.age),gender:String(r.gender??""),activity_level:String(r.activity_level??"久坐"),calorie_target:r.calorie_target==null?null:Number(r.calorie_target)}:{people_count:2,taste_preference:"家常",allergies:"",cuisine_style:"中餐",days:7,height_cm:null,age:null,gender:"",activity_level:"久坐",calorie_target:null}}
   updatePreferences(p:Partial<Preferences>){
     if(p.people_count!==undefined)requireNumber("people_count",p.people_count,1,20);
     if(p.days!==undefined)requireNumber("days",p.days,1,31);
     if(p.height_cm!==undefined)requireNumber("height_cm",p.height_cm,80,250,{nullable:true});
     if(p.age!==undefined)requireNumber("age",p.age,1,120,{nullable:true});
+    if(p.calorie_target!==undefined)requireNumber("calorie_target",p.calorie_target,800,6000,{nullable:true});
     for(const [field,max,allowEmpty] of [["taste_preference",200,false],["allergies",1000,true],["cuisine_style",120,false],["gender",20,true],["activity_level",40,true]] as const){
       const value=p[field];
       if(value!==undefined&&(typeof value!=="string"||(!allowEmpty&&!value.trim())||value.length>max))throw new RangeError(`${field} 不符合长度要求`);
     }
-    const allowed=["people_count","taste_preference","allergies","cuisine_style","days","height_cm","age","gender","activity_level"];
+    const allowed=["people_count","taste_preference","allergies","cuisine_style","days","height_cm","age","gender","activity_level","calorie_target"];
     const e=Object.entries(p).filter(([k,v])=>allowed.includes(k)&&v!==undefined);
     if(e.length)this.db.query(`UPDATE preferences SET ${e.map(([k])=>`${k}=?`).join(",")} WHERE id=1`).run(...e.map(([,v])=>v as string|number|null));
   }
@@ -349,7 +366,11 @@ export class RecipeDB {
 
   createConversation(title="新对话",context:unknown={}){return Number(this.db.query("INSERT INTO conversations(title,context) VALUES(?,?)").run(title,JSON.stringify(context)).lastInsertRowid)}
   private conversation(r:Record<string,unknown>){return {...r,context:parseJson(r.context)} as unknown as Conversation}
-  getConversations(){return (this.db.query("SELECT * FROM conversations WHERE archived_at IS NULL ORDER BY updated_at DESC,id DESC").all() as Array<Record<string,unknown>>).map(r=>this.conversation(r))}
+  getConversations(){
+    // 附带最新一条消息预览（截 60 字），供会话列表卡片展示
+    const rows=this.db.query(`SELECT c.*, (SELECT substr(m.content,1,60) FROM messages m WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) AS last_message FROM conversations c WHERE c.archived_at IS NULL ORDER BY c.updated_at DESC,c.id DESC`).all() as Array<Record<string,unknown>>;
+    return rows.map(r=>this.conversation(r));
+  }
   getConversation(id:number){const r=this.one("conversations",id);return r?this.conversation(r):null}
   archiveConversation(id:number){return this.archive("conversations",id)}
   renameConversation(id:number,title:string){requireText("title",title,120);return this.patch("conversations",id,{title},["title"])}
@@ -509,12 +530,44 @@ export class RecipeDB {
     }
     throw new RangeError("该操作不可撤销");
   }
-  searchFoods(query:string,category?:string){const q=query.trim();let sql="SELECT id,name,category,emoji,unit FROM foods";const cond:string[]=[],params:string[]=[];if(q){cond.push("name LIKE ?");params.push(`%${q}%`);}if(category){cond.push("category=?");params.push(category);}if(cond.length)sql+=" WHERE "+cond.join(" AND ");sql+=" ORDER BY category,id LIMIT 500";return this.db.query(sql).all(...params) as Array<{id:number;name:string;category:string;emoji:string;unit:string}>}
+  searchFoods(query:string,category?:string){const q=query.trim();let sql="SELECT id,name,category,emoji,unit,kcal,protein,fat,carb FROM foods";const cond:string[]=[],params:string[]=[];if(q){cond.push("name LIKE ?");params.push(`%${q}%`);}if(category){cond.push("category=?");params.push(category);}if(cond.length)sql+=" WHERE "+cond.join(" AND ");sql+=" ORDER BY category,id LIMIT 500";return this.db.query(sql).all(...params) as Array<{id:number;name:string;category:string;emoji:string;unit:string;kcal:number|null;protein:number|null;fat:number|null;carb:number|null}>}
   getFoodCategories(){return FOOD_CATEGORIES}
-  addDietLog(date:string,mealType:string,foods:unknown,note:string){requireDate("date",date);validateMealType(mealType);validateDietFoods(foods);if(typeof note!=="string"||note.length>2000)throw new RangeError("note 必须是不超过 2000 个字符的字符串");return Number(this.db.query("INSERT INTO diet_logs(date,meal_type,foods,note,updated_at) VALUES(?,?,?,?,CURRENT_TIMESTAMP)").run(date,mealType,JSON.stringify(foods),note).lastInsertRowid)}
+  /** 逐项注入克数/热量/宏量（内置表精确匹配，表外按中性口径估算），并汇总总热量。 */
+  private enrichDietFoods(foods:unknown):{items:unknown[];totalKcal:number;protein:number;fat:number;carb:number}{
+    let totalKcal=0,protein=0,fat=0,carb=0;
+    const items=(foods as Array<Record<string,unknown>>).map(item=>{
+      const name=String(item.name??"");
+      const quantity=item.quantity==null?undefined:String(item.quantity);
+      const grams=estimateItemNutrition(name,quantity).grams;
+      if(typeof item.kcal==="number"&&Number.isFinite(item.kcal)){
+        totalKcal+=item.kcal;
+        return {name,quantity,grams,kcal:Math.round(item.kcal),source:"estimate"};
+      }
+      const est=estimateItemNutrition(name,quantity);
+      totalKcal+=est.kcal??0;
+      protein+=est.protein??0;fat+=est.fat??0;carb+=est.carb??0;
+      return {name,quantity,grams,kcal:est.kcal,protein:est.protein,fat:est.fat,carb:est.carb,source:est.source};
+    });
+    return {items,totalKcal:Math.round(totalKcal),protein:Math.round(protein*10)/10,fat:Math.round(fat*10)/10,carb:Math.round(carb*10)/10};
+  }
+  addDietLog(date:string,mealType:string,foods:unknown,note:string){
+    requireDate("date",date);validateMealType(mealType);validateDietFoods(foods);
+    if(typeof note!=="string"||note.length>2000)throw new RangeError("note 必须是不超过 2000 个字符的字符串");
+    const enriched=this.enrichDietFoods(foods);
+    return Number(this.db.query("INSERT INTO diet_logs(date,meal_type,foods,note,total_kcal,updated_at) VALUES(?,?,?,?,?,CURRENT_TIMESTAMP)").run(date,mealType,JSON.stringify(enriched.items),note,enriched.totalKcal).lastInsertRowid);
+  }
   getDietLogs(){return (this.db.query("SELECT * FROM diet_logs WHERE archived_at IS NULL ORDER BY date DESC,id DESC").all() as Array<Record<string,unknown>>).map(r=>({...r,foods:parseJson(r.foods)}) as unknown as DietLog)}
   getDietLog(id:number){const r=this.one("diet_logs",id);return r?{...r,foods:parseJson(r.foods)} as unknown as DietLog:null}
-  updateDietLog(id:number,p:Partial<DietLog>){if(p.date!==undefined)requireDate("date",p.date);if(p.meal_type!==undefined)validateMealType(p.meal_type);if(p.foods!==undefined)validateDietFoods(p.foods);if(p.note!==undefined&&(typeof p.note!=="string"||p.note.length>2000))throw new RangeError("note 必须是不超过 2000 个字符的字符串");const d={...p,foods:p.foods===undefined?undefined:JSON.stringify(p.foods)};return this.patch("diet_logs",id,d as Record<string,PatchValue>,["date","meal_type","foods","note"])}
+  updateDietLog(id:number,p:Partial<DietLog>){
+    if(p.date!==undefined)requireDate("date",p.date);if(p.meal_type!==undefined)validateMealType(p.meal_type);if(p.foods!==undefined)validateDietFoods(p.foods);if(p.note!==undefined&&(typeof p.note!=="string"||p.note.length>2000))throw new RangeError("note 必须是不超过 2000 个字符的字符串");
+    const d={...p,foods:p.foods===undefined?undefined:JSON.stringify(this.enrichDietFoods(p.foods).items)};
+    const changed=this.patch("diet_logs",id,d as Record<string,PatchValue>,["date","meal_type","foods","note"]);
+    if(changed&&p.foods!==undefined){
+      const total=this.enrichDietFoods(p.foods).totalKcal;
+      this.db.query("UPDATE diet_logs SET total_kcal=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(total,id);
+    }
+    return changed;
+  }
   archiveDietLog(id:number){return this.archive("diet_logs",id)}
 
   getOverview(){const today=new Date().toISOString().slice(0,10);return{ingredients:this.getIngredients().slice(0,8),recipes:this.getRecipes().slice(0,4),shoppingItems:this.getShoppingItems(),today:{workouts:this.getWorkouts().filter(x=>x.date===today),habits:this.getHabits().filter(x=>x.date===today)},goals:this.getGoals(),bodyMetrics:this.getBodyMetrics().slice(0,14)}}

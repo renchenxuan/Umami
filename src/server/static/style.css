@@ -3896,3 +3896,231 @@ body:not([data-view="chat"]) .pet-companion { display: none; }
 /* 表单分区的显式隐藏（.weekday-picker 的 display:flex 会覆盖通用 .hidden） */
 .weekday-picker.hidden { display: none; }
 .schedule-form .field.hidden { display: none; }
+
+/* ===================== D5：饮食页热量汇总 ===================== */
+.diet-summary {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  padding: 16px 20px;
+  margin-bottom: 14px;
+}
+
+.diet-ring-wrap { position: relative; width: 120px; height: 120px; flex: none; }
+.diet-ring { width: 120px; height: 120px; transform: rotate(-90deg); }
+.diet-ring circle { fill: none; stroke-width: 10; }
+.diet-ring-track { stroke: var(--fill-2); }
+.diet-ring-fill { stroke: var(--emerald-bright); stroke-linecap: round; transition: stroke-dashoffset 0.8s var(--ease); }
+.diet-ring-fill.over { stroke: var(--accent-fitness); }
+.diet-ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.diet-ring-center strong { font-size: 22px; font-family: var(--font-display); color: var(--text); }
+.diet-ring-center span { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+.diet-summary-body { flex: 1; min-width: 250px; display: flex; flex-direction: column; gap: 10px; }
+.diet-meal-bars { display: flex; flex-direction: column; gap: 6px; }
+.diet-meal-bar-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.diet-meal-bar-label { width: 34px; color: var(--muted); flex: none; }
+.diet-meal-bar-track { flex: 1; height: 8px; border-radius: 4px; background: var(--fill-2); overflow: hidden; }
+.diet-meal-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--emerald), var(--emerald-bright)); transition: width 0.6s var(--ease); }
+.diet-meal-bar-val { width: 82px; text-align: right; color: var(--muted); flex: none; font-variant-numeric: tabular-nums; }
+.diet-macros { display: flex; gap: 8px; flex-wrap: wrap; }
+.diet-macro-chip { font-size: 11.5px; padding: 4px 10px; border-radius: 999px; background: var(--mint); color: var(--emerald-deep); font-weight: 600; }
+[data-theme="dark"] .diet-macro-chip { color: var(--emerald); }
+.diet-trend { display: flex; align-items: flex-end; gap: 8px; height: 62px; }
+.diet-trend-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.diet-trend-bar { width: 100%; max-width: 22px; border-radius: 5px 5px 2px 2px; background: linear-gradient(180deg, var(--emerald-bright), rgba(47, 158, 110, 0.25)); min-height: 4px; }
+.diet-trend-col span { font-size: 10px; color: var(--faint); }
+.diet-row-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.kcal-badge { font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--fill-deep); color: var(--emerald); flex: none; }
+
+/* ===================== F：会话列表卡片化 ===================== */
+.conversation-search {
+  margin: 0 0 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-soft);
+  background: var(--fill);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--dur) var(--ease);
+}
+.conversation-search:focus { border-color: var(--emerald-bright); }
+
+.conversation-group { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--faint); margin: 12px 6px 4px; }
+
+.conversation-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  cursor: pointer;
+  position: relative;
+}
+.conversation-avatar {
+  width: 34px;
+  height: 37px;
+  flex: none;
+  border-radius: 10px;
+  background-color: var(--mint);
+  background-image: url("pet/spritesheet.webp");
+  background-size: 272px 296px;
+  background-position: 0 0;
+  background-repeat: no-repeat;
+}
+.conversation-body { flex: 1; min-width: 0; }
+.conversation-title-row { display: flex; align-items: baseline; gap: 8px; }
+.conversation-item .conversation-title { color: var(--text); font-weight: 600; font-size: 13.5px; }
+.conversation-time { font-size: 10.5px; color: var(--faint); flex: none; }
+.conversation-preview { font-size: 12px; color: var(--faint); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 14px; }
+.conversation-item.has-reminder .conversation-title::after { content: none; }
+.conversation-item.has-reminder .conversation-preview { color: var(--emerald); font-weight: 600; }
+.conversation-item.has-reminder .conversation-avatar { box-shadow: 0 0 0 2px var(--emerald-bright); border-radius: 10px; }
+
+/* ===================== G：聊天页改造 ===================== */
+.day-divider { display: flex; align-items: center; justify-content: center; margin: 18px 0 6px; color: var(--faint); font-size: 11.5px; }
+.day-divider::before, .day-divider::after { content: ""; height: 1px; width: 56px; background: var(--line-soft); margin: 0 12px; }
+
+.typing-dots { display: inline-flex; gap: 5px; padding: 4px 2px; }
+.typing-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--emerald-bright); opacity: 0.35; animation: typingBounce 1.2s ease-in-out infinite; }
+.typing-dots i:nth-child(2) { animation-delay: 0.15s; }
+.typing-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+.bubble.streaming::after { content: "▍"; color: var(--emerald-bright); margin-left: 2px; animation: cursorBlink 0.9s steps(2) infinite; }
+@keyframes cursorBlink { 50% { opacity: 0; } }
+
+/* AI 消息便签纸卡片 + 团团头像 */
+.msg.assistant .bubble {
+  background: var(--surface-solid);
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--shadow-sm);
+  border-radius: 4px 18px 18px 18px;
+}
+[data-theme="dark"] .msg.assistant .bubble { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 22px rgba(0, 0, 0, 0.3); }
+.msg.assistant::before {
+  background-image: url("pet/spritesheet.webp");
+  background-size: 272px 296px;
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  background-color: var(--mint);
+  border-radius: 10px;
+  width: 34px;
+  height: 37px;
+}
+
+.bubble .chat-md-h { border-left: 3px solid var(--emerald-bright); padding-left: 9px; }
+.bubble pre { background: var(--fill); border: 1px solid var(--line-soft); border-radius: 12px; padding: 12px 14px; overflow-x: auto; }
+.bubble pre code { background: none; padding: 0; }
+.bubble table tr:nth-child(even) td { background: rgba(47, 158, 110, 0.05); }
+.bubble blockquote { border-left: 3px solid var(--emerald-bright); margin: 6px 0; padding: 2px 12px; color: var(--muted); background: rgba(47, 158, 110, 0.05); border-radius: 0 8px 8px 0; }
+
+/* 输入区快捷条 */
+.composer-quick { display: flex; gap: 8px; padding: 0 4px 8px; overflow-x: auto; scrollbar-width: none; }
+.composer-quick::-webkit-scrollbar { display: none; }
+.quick-chip {
+  flex: none;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.quick-chip:hover { color: var(--emerald); border-color: var(--emerald-bright); transform: translateY(-1px); }
+
+/* ===================== E：背景场景（厨房台面 + 蒸汽 + 光尘 + 视差） ===================== */
+@property --scene-glow {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(255, 210, 120, 0);
+}
+
+body {
+  --scene-ink: rgba(14, 107, 79, 0.09);
+  --scene-glow: rgba(255, 210, 120, 0);
+  transition: --aurora-1 1.2s var(--ease), --aurora-2 1.2s var(--ease), --aurora-3 1.2s var(--ease), --scene-glow 1.2s var(--ease);
+}
+[data-theme="dark"] body { --scene-ink: rgba(52, 211, 153, 0.07); }
+html[data-dayphase="morning"] body { --scene-glow: rgba(255, 214, 130, 0.16); --scene-ink: rgba(20, 116, 84, 0.11); }
+html[data-dayphase="evening"] body { --scene-glow: rgba(255, 170, 90, 0.2); }
+html[data-dayphase="night"] body { --scene-glow: rgba(255, 190, 100, 0.13); }
+
+.bg-scene {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 150px;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.bg-scene svg { position: absolute; bottom: 0; left: 0; width: 100%; height: 100%; display: block; }
+
+.bg-steam, .bg-dust { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+
+.steam-item {
+  position: absolute;
+  bottom: -46px;
+  width: var(--size, 32px);
+  height: var(--size, 32px);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 70%);
+  filter: blur(6px);
+  opacity: 0;
+  animation: steamRise var(--dur, 14s) linear var(--delay, 0s) infinite;
+}
+[data-theme="dark"] .steam-item { background: radial-gradient(circle, rgba(110, 231, 183, 0.16), transparent 70%); }
+@keyframes steamRise {
+  0% { transform: translate3d(0, 0, 0) scale(0.7); opacity: 0; }
+  15% { opacity: 0.35; }
+  100% { transform: translate3d(var(--drift, 0px), -46vh, 0) scale(1.6); opacity: 0; }
+}
+
+.dust-item {
+  position: absolute;
+  width: var(--size, 3px);
+  height: var(--size, 3px);
+  border-radius: 50%;
+  background: var(--emerald-bright);
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.5);
+  opacity: 0;
+  animation: dustFloat var(--dur, 18s) ease-in-out var(--delay, 0s) infinite;
+}
+@keyframes dustFloat {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  20% { opacity: var(--peak, 0.3); }
+  80% { opacity: var(--peak, 0.3); }
+  100% { transform: translate3d(var(--drift, 0px), -58vh, 0); opacity: 0; }
+}
+
+/* 鼠标视差：装饰层与台面层轻微跟随（transform only） */
+.bg-decor, .bg-steam, .bg-dust {
+  transform: translate3d(calc((var(--mx, 50vw) - 50vw) * 0.008), calc((var(--my, 50vh) - 50vh) * 0.008), 0);
+}
+.bg-scene svg { transform: translate3d(calc((var(--mx, 50vw) - 50vw) * 0.004), 0, 0); }
+
+/* 氛围开关：off 全关、reduced 只留极光与台面 */
+html[data-ambient="off"] .bg-scene,
+html[data-ambient="off"] .bg-steam,
+html[data-ambient="off"] .bg-dust { display: none !important; }
+html[data-ambient="reduced"] .bg-steam,
+html[data-ambient="reduced"] .bg-dust { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-steam, .bg-dust { display: none !important; }
+}

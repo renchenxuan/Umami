@@ -14,9 +14,13 @@
   <div class="bg-aurora" aria-hidden="true"></div>
   <div class="cursor-glow" aria-hidden="true"></div>
   <div class="bg-decor" aria-hidden="true"></div>
+  <div class="bg-dust" aria-hidden="true"></div>
+  <div class="bg-steam" aria-hidden="true"></div>
+  <div class="bg-scene" aria-hidden="true"></div>
   <div class="app">
     <aside class="sidebar">
       <button id="new-conv-btn" class="new-conv-btn">＋ 新对话</button>
+      <input id="conversation-search" class="conversation-search" type="text" placeholder="搜索会话…" aria-label="搜索会话" />
       <div id="conversation-list" class="conversation-list"></div>
     </aside>
     <div class="main">
@@ -195,6 +199,23 @@
             <input id="d-date" class="field" type="date" />
             <button id="d-add" class="primary-btn" type="submit">记录</button>
           </form>
+          <div id="diet-summary" class="diet-summary hidden">
+            <div class="diet-ring-wrap">
+              <svg id="diet-ring" class="diet-ring" viewBox="0 0 120 120" role="img" aria-label="今日热量摄入进度">
+                <circle class="diet-ring-track" cx="60" cy="60" r="52" />
+                <circle id="diet-ring-fill" class="diet-ring-fill" cx="60" cy="60" r="52" />
+              </svg>
+              <div class="diet-ring-center">
+                <strong id="diet-kcal-now">0</strong>
+                <span id="diet-kcal-target">/ 2000 千卡</span>
+              </div>
+            </div>
+            <div class="diet-summary-body">
+              <div id="diet-meal-bars" class="diet-meal-bars"></div>
+              <div id="diet-macros" class="diet-macros"></div>
+              <div id="diet-trend" class="diet-trend" role="img" aria-label="近 7 天热量趋势"></div>
+            </div>
+          </div>
           <div id="diet-list" class="list"></div>
         </div>
       </section>
@@ -260,6 +281,13 @@
       </section>
 
       <footer id="footer" class="footer">
+        <div class="composer-quick" role="toolbar" aria-label="快捷操作">
+          <button type="button" class="quick-chip" data-prompt="帮我记录今天吃了：">🍳 记一笔</button>
+          <button type="button" class="quick-chip" data-prompt="看看冰箱里能做什么菜">🧊 冰箱做菜</button>
+          <button type="button" class="quick-chip" data-prompt="推荐一下今天的运动">💪 今日运动</button>
+          <button type="button" class="quick-chip" data-prompt="帮我记录体重">⚖️ 记体重</button>
+          <button type="button" class="quick-chip" data-prompt="每天晚上六点提醒我吃晚饭">⏰ 建提醒</button>
+        </div>
         <div id="preview" class="preview hidden">
           <img id="preview-img" alt="图片预览" />
           <button id="clear-img" class="clear-img" title="移除图片" aria-label="移除已选择的图片">✕</button>
@@ -290,6 +318,12 @@
       <select id="theme-select" class="field">
         <option value="dark">深色</option>
         <option value="light">浅色</option>
+      </select>
+      <label class="field-label">氛围效果<span class="field-hint">背景场景与粒子的丰富程度</span></label>
+      <select id="ambient-select" class="field">
+        <option value="standard">标准</option>
+        <option value="reduced">减弱（仅极光）</option>
+        <option value="off">关闭</option>
       </select>
       <label class="field-label">推理强度<span class="field-hint">仅对支持推理的模型生效</span></label>
       <select id="thinking-select" class="field">

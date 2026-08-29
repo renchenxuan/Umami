@@ -16,13 +16,13 @@ describe("v1 API",()=>{
   });
   test("validates health ranges",async()=>{const out=await call("/api/v1/body-metrics",{method:"POST",body:JSON.stringify({date:"2026-08-26",weight_kg:5})});expect(out.res.status).toBe(422);expect(out.body.error.code).toBe("VALIDATION_ERROR")});
   test("lists paged persisted messages while POST is reserved for the streaming server",async()=>{const c=await call("/api/v1/conversations",{method:"POST",body:JSON.stringify({title:"测试"})});const id=c.body.data.id;db!.addMessage(id,"user","你好");const list=await call(`/api/v1/conversations/${id}/messages`);expect(list.body.data).toHaveLength(1);expect(list.body.data[0].content).toBe("你好");const direct=await call(`/api/v1/conversations/${id}/messages`,{method:"POST",body:JSON.stringify({content:"绕过流式接口"})});expect(direct.res.status).toBe(405)});
-  test("healthz exposes schema status",async()=>{const out=await call("/api/v1/healthz");expect(out.body.data).toEqual({status:"ok",database:"ok",schemaVersion:9})});
+  test("healthz exposes schema status",async()=>{const out=await call("/api/v1/healthz");expect(out.body.data).toEqual({status:"ok",database:"ok",schemaVersion:10})});
   test("searches foods and performs diet-log CRUD",async()=>{
     const allFoods=await call("/api/v1/foods");expect(allFoods.body.data.length).toBeGreaterThan(100);
     const foods=await call("/api/v1/foods?q=番茄");expect(foods.body.data.length).toBeGreaterThan(0);expect(foods.body.data[0].emoji).toBe("🍅");
     const cats=await call("/api/v1/food-categories");expect(cats.body.data).toContain("蔬菜");
     const created=await call("/api/v1/diet-logs",{method:"POST",body:JSON.stringify({date:"2026-08-28",meal_type:"早餐",foods:[{name:"鸡蛋",quantity:"2个"}],note:"好"})});
-    expect(created.res.status).toBe(201);const id=created.body.data.id;expect(created.body.data.foods).toEqual([{name:"鸡蛋",quantity:"2个"}]);
+    expect(created.res.status).toBe(201);const id=created.body.data.id;expect(created.body.data.foods[0]).toMatchObject({name:"鸡蛋",quantity:"2个",grams:100,kcal:144,protein:13.3,source:"table"});
     const list=await call("/api/v1/diet-logs");expect(list.body.data.length).toBeGreaterThan(0);
     const removed=await call(`/api/v1/diet-logs/${id}`,{method:"DELETE"});expect(removed.body.data.archived).toBe(true);
   });

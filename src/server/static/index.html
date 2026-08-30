@@ -11,9 +11,8 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body data-view="chat">
+  <a class="skip-link" href="#main-content">跳到主内容</a>
   <div class="bg-aurora" aria-hidden="true"></div>
-  <div class="cursor-glow" aria-hidden="true"></div>
-  <div class="bg-decor" aria-hidden="true"></div>
   <div class="bg-dust" aria-hidden="true"></div>
   <div class="bg-steam" aria-hidden="true"></div>
   <div class="bg-scene" aria-hidden="true"></div>
@@ -23,7 +22,7 @@
       <input id="conversation-search" class="conversation-search" type="text" placeholder="搜索会话…" aria-label="搜索会话" />
       <div id="conversation-list" class="conversation-list"></div>
     </aside>
-    <div class="main">
+    <div class="main" id="main-content" tabindex="-1">
       <header class="header">
         <button id="menu-btn" class="menu-btn" type="button" aria-label="打开会话列表" aria-expanded="false">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -44,42 +43,45 @@
             <span class="brand-sub">UMAMI · 膳食健康管家</span>
           </div>
         </div>
-        <nav class="nav" role="tablist">
-          <button id="tab-chat" class="nav-btn active" data-view="chat" role="tab" aria-selected="true" aria-controls="messages" tabindex="0">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            <span>对话</span>
-          </button>
-          <button id="tab-fridge" class="nav-btn" data-view="fridge" role="tab" aria-selected="false" aria-controls="fridge" tabindex="-1">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v18M4 12h16M6.3 6.3l11.4 11.4M17.7 6.3L6.3 17.7"/></svg>
-            <span>冰箱</span>
-          </button>
-          <button id="tab-fitness" class="nav-btn" data-view="fitness" role="tab" aria-selected="false" aria-controls="fitness" tabindex="-1">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 9h11v6h-11z"/></svg>
-            <span>健身</span>
-          </button>
-          <button id="tab-diet" class="nav-btn" data-view="diet" role="tab" aria-selected="false" aria-controls="diet" tabindex="-1">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3v7"/></svg>
-            <span>饮食</span>
-          </button>
-          <button id="tab-profile" class="nav-btn" data-view="profile" role="tab" aria-selected="false" aria-controls="profile" tabindex="-1">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            <span>资料</span>
-          </button>
-          <button id="tab-board" class="nav-btn" data-view="board" role="tab" aria-selected="false" aria-controls="board" tabindex="-1">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
-            <span>面板</span>
-          </button>
+        <nav class="nav-wrap" aria-label="主导航">
+          <div class="nav" role="tablist">
+            <button id="tab-board" class="nav-btn" data-view="board" role="tab" aria-selected="false" aria-controls="board" tabindex="-1">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+              <span>今日总览</span>
+            </button>
+            <button id="tab-fridge" class="nav-btn" data-view="fridge" role="tab" aria-selected="false" aria-controls="fridge" tabindex="-1">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v18M4 12h16M6.3 6.3l11.4 11.4M17.7 6.3L6.3 17.7"/></svg>
+              <span>冰箱</span>
+            </button>
+            <button id="tab-chat" class="nav-btn active" data-view="chat" role="tab" aria-selected="true" aria-controls="messages" tabindex="0">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <span>AI 副驾</span>
+            </button>
+            <span class="nav-divider" role="separator" aria-hidden="true"></span>
+            <button id="tab-diet" class="nav-btn" data-view="diet" role="tab" aria-selected="false" aria-controls="diet" tabindex="-1">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3v7"/></svg>
+              <span>饮食</span>
+            </button>
+            <button id="tab-fitness" class="nav-btn" data-view="fitness" role="tab" aria-selected="false" aria-controls="fitness" tabindex="-1">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 9h11v6h-11z"/></svg>
+              <span>训练</span>
+            </button>
+            <button id="tab-profile" class="nav-btn" data-view="profile" role="tab" aria-selected="false" aria-controls="profile" tabindex="-1">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span>健康档案</span>
+            </button>
+          </div>
         </nav>
-        <button id="settings-btn" class="settings-btn" title="设置中心">
+        <button id="settings-btn" class="settings-btn" title="设置中心" aria-label="打开设置中心">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
           </svg>
         </button>
-        <button id="skills-btn" class="skills-btn" title="技能中心">
+        <button id="skills-btn" class="skills-btn" title="AI 回答能力" aria-label="打开 AI 回答能力设置">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
         </button>
-        <button id="schedules-btn" class="skills-btn" title="自动化中心">
+        <button id="schedules-btn" class="skills-btn" title="自动化中心" aria-label="打开自动化中心">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
         </button>
       </header>
@@ -94,7 +96,7 @@
         <button id="guidance-settings-btn" class="guidance-btn" type="button">去配置</button>
         <button id="guidance-close" class="guidance-close" type="button" aria-label="关闭提示" title="关闭提示">✕</button>
       </div>
-      <main id="messages" class="messages" role="tabpanel" aria-labelledby="tab-chat"></main>
+      <main id="messages" class="messages" aria-label="对话消息"></main>
 
       <section id="fridge" class="view hidden" role="tabpanel" aria-labelledby="tab-fridge">
         <div class="fridge">
@@ -111,7 +113,7 @@
             <div class="fridge-real-head">
               <div class="fridge-real-title">
                 <h3>我的冰箱 <span id="fridge-count" class="fridge-count"></span></h3>
-                <p class="fridge-hint">点左侧食材加入冰箱；AI 会优先用冰箱里的食材推荐菜谱。</p>
+                <p class="fridge-hint">从「食材大全」点选或拖入食材；AI 推荐菜谱会优先用冰箱里已有的。</p>
               </div>
               <div class="fridge-temp-controls">
                 <label class="temp-field">冷藏
@@ -126,12 +128,13 @@
                   <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/><path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.3h7.6a1.5 1.5 0 0 0 1.5-1.2L20 8H6"/></svg>
                   <span>购物清单</span>
                 </button>
-                <button id="fridge-ai-btn" class="fridge-ai-btn" title="让 AI 分析冰箱保鲜状态">
+                <button id="fridge-ai-btn" class="fridge-ai-btn" title="把冰箱清单发给当前模型，得到保鲜推测与食用建议">
                   <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>
-                  <span>AI 检测</span>
+                  <span>AI 保鲜建议</span>
                 </button>
               </div>
             </div>
+            <p class="fridge-ai-disclosure">「AI 保鲜建议」不是传感器测量：点击后会把食材名称、数量、备注、存放天数、分区与冷藏/冷冻温度设置发送给当前模型提供商，返回按记录日期推测的保鲜建议。</p>
 
             <div class="fridge-body">
               <div class="fridge-zone" data-zone="freezer">
@@ -159,8 +162,8 @@
 
       <section id="fitness" class="view hidden" role="tabpanel" aria-labelledby="tab-fitness">
         <div class="page">
-          <h2>健身</h2>
-          <p class="page-desc">记录训练计划与每日时长，AI 会据此分析你的运动情况。</p>
+          <h2>训练</h2>
+          <p class="page-desc">记录训练计划与每日时长；到「今日总览」点「健康分析」，AI 会结合这些记录给出分析。</p>
           <div id="workout-presets" class="workout-presets" role="group" aria-label="常用健身类型"></div>
           <form class="form-row" id="workout-form">
             <input id="w-type" class="field" placeholder="类型，如 慢跑（也可点上方图标快速选择）" />
@@ -177,19 +180,7 @@
       <section id="diet" class="view hidden" role="tabpanel" aria-labelledby="tab-diet">
         <div class="page">
           <h2>饮食</h2>
-          <p class="page-desc">记录每天吃了什么，AI 会据此给出每日/每周健康分析。</p>
-          <button id="diet-quick-btn" class="diet-quick-btn" type="button" title="快速记一笔">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-            <span>记一笔</span>
-          </button>
-          <div id="diet-quick-pop" class="diet-quick-pop hidden">
-            <select id="dq-meal" class="field">
-              <option>早餐</option><option>午餐</option><option>晚餐</option><option>加餐</option>
-            </select>
-            <input id="dq-foods" class="field" placeholder="吃了什么，用逗号分隔，如 鸡蛋,牛奶" />
-            <button id="dq-submit" class="primary-btn" type="button">保存</button>
-            <button id="dq-cancel" class="secondary-btn" type="button">取消</button>
-          </div>
+          <p class="page-desc">记录每天吃了什么；到「今日总览」发起健康分析，AI 会结合近期的饮食、运动与身体数据给出结果。热量为系统按内置营养库的估算值，不是测量结果。</p>
           <form class="form-row" id="diet-form">
             <select id="d-meal" class="field">
               <option>早餐</option><option>午餐</option><option>晚餐</option><option>加餐</option>
@@ -222,8 +213,8 @@
 
       <section id="profile" class="view hidden" role="tabpanel" aria-labelledby="tab-profile">
         <div class="page">
-          <h2>个人资料</h2>
-          <p class="page-desc">记录你的身体状况与偏好，AI 会据此生成个性化推荐与分析。</p>
+          <h2>健康档案</h2>
+          <p class="page-desc">记录你的身体状况与偏好；只在你主动发起推荐或分析时，AI 才会读取这里的数据。</p>
           <form id="profile-form">
           <div class="form-grid">
             <label class="form-field"><span>身高（cm）</span><input id="p-height" class="field" type="number" placeholder="如 175" /></label>
@@ -234,7 +225,7 @@
             <label class="form-field"><span>菜系</span><input id="p-cuisine" class="field" placeholder="如 中餐" /></label>
             <label class="form-field"><span>忌口</span><input id="p-allergies" class="field" placeholder="如 花生" /></label>
             <label class="form-field"><span>用餐人数</span><input id="p-people" class="field" type="number" placeholder="如 2" /></label>
-            <label class="form-field"><span>默认天数</span><input id="p-days" class="field" type="number" placeholder="如 7" /></label>
+            <label class="form-field"><span>默认规划天数</span><input id="p-days" class="field" type="number" placeholder="如 7（规划一周食谱）" /></label>
           </div>
           <div class="form-actions">
             <button id="profile-save" class="primary-btn" type="submit">保存资料</button>
@@ -243,7 +234,7 @@
           </form>
           <div class="profile-section">
             <h3>每日记录</h3>
-            <p class="page-desc">记录每天的体重与饮食，AI 会结合这些数据做健康分析。</p>
+            <p class="page-desc">记录每天的体重与体脂；发起健康分析时 AI 会读取这些数据。</p>
             <form class="form-row" id="weight-form">
               <input id="p-weight" class="field" type="number" step="0.1" min="20" max="500" placeholder="今天体重(kg)" />
               <input id="p-bodyfat" class="field" type="number" step="0.1" min="3" max="60" placeholder="体脂%(可选)" />
@@ -258,23 +249,23 @@
       <section id="board" class="board hidden" role="tabpanel" aria-labelledby="tab-board">
         <div class="board-toolbar">
           <div class="board-toolbar-title">
-            <h2>健康面板</h2>
-            <p>食材、训练、目标、习惯，拖拽整理你的健康生活</p>
+            <h2>今日总览</h2>
+            <p>今天的食材、训练、目标与习惯，一屏看完</p>
           </div>
           <div class="board-toolbar-actions">
-            <button id="add-card-btn" class="board-action-btn">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-              <span>添加</span>
+            <button id="recommend-btn" class="board-action-btn primary">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+              <span>个性化推荐</span>
             </button>
             <button id="analysis-btn" class="board-action-btn">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="7"/><rect x="12" y="7" width="3" height="11"/><rect x="17" y="13" width="3" height="5"/></svg>
               <span>健康分析</span>
             </button>
-            <button id="restore-board-btn" class="board-action-btn hidden">显示已隐藏卡片</button>
-            <button id="recommend-btn" class="board-action-btn primary">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
-              <span>个性化推荐</span>
+            <button id="add-card-btn" class="board-action-btn">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+              <span>添加</span>
             </button>
+            <button id="restore-board-btn" class="board-action-btn hidden">显示已隐藏卡片</button>
           </div>
         </div>
         <div id="board-canvas" class="board-canvas"></div>
@@ -325,7 +316,7 @@
         <option value="reduced">减弱（仅极光）</option>
         <option value="off">关闭</option>
       </select>
-      <label class="field-label">推理强度<span class="field-hint">仅对支持推理的模型生效</span></label>
+      <label class="field-label">回答思考深度<span class="field-hint">仅对支持推理的模型生效</span></label>
       <select id="thinking-select" class="field">
         <option value="off">关闭</option>
         <option value="minimal">极简</option>
@@ -397,14 +388,14 @@
       </div>
       <div id="recommend-consent" class="recommend-consent">
         <p><strong>发送前请确认数据流向</strong></p>
-        <p>生成推荐时，会把近期身体指标、健康目标、饮食偏好与过敏信息发送给当前模型提供商（<span id="recommend-provider">正在读取…</span>）。只发送完成本次推荐所需的数据。</p>
-        <p>结果属于通用健康信息和营养估算，不提供医疗诊断或治疗建议；如有症状、用药或伤病问题，请咨询合格专业人员。</p>
+        <p>生成推荐时，会把近期身体指标（体重/体脂）、健康目标、饮食偏好、过敏忌口与冰箱现有食材清单发送给当前模型提供商（<span id="recommend-provider">正在读取…</span>）。只发送完成本次推荐所需的数据。</p>
+        <p>结果是通用健康信息与营养估算，不是医疗建议；若你还没有体重等档案数据，会得到适合久坐人群的普适建议。</p>
         <label class="recommend-consent-check"><input id="recommend-consent-check" type="checkbox" /> 我已了解并同意本次发送</label>
         <button id="recommend-generate" class="primary-btn" disabled>同意并生成推荐</button>
       </div>
       <div id="recommend-loading" class="recommend-loading hidden" role="status" aria-live="polite">
         <span class="spinner"></span>
-        <p>正在根据你的身体状况与偏好生成推荐…</p>
+        <p>正在根据你的身体数据、目标与冰箱食材生成推荐…</p>
       </div>
       <div id="recommend-result" class="recommend-result hidden"></div>
     </div>
@@ -414,14 +405,15 @@
     <div class="modal-content analysis-content">
       <div class="modal-header">
         <h2 id="analysis-title">健康分析</h2>
-        <button id="analysis-close" class="close-btn">✕</button>
+        <button id="analysis-close" class="close-btn" aria-label="关闭健康分析">✕</button>
       </div>
       <div id="analysis-tabs" class="analysis-tabs">
         <button class="analysis-tab active" data-period="daily">今日分析</button>
         <button class="analysis-tab" data-period="weekly">本周分析</button>
       </div>
       <div id="analysis-consent" class="recommend-consent">
-        <p>生成分析时，会把近期的饮食、运动、身体数据与偏好发送给当前模型提供商（<span id="analysis-provider">正在读取…</span>）。只发送完成本次分析所需的数据。</p>
+        <p>生成分析时，会把近期饮食记录（热量为系统估算值）、运动记录、身体数据、健康目标与偏好发送给当前模型提供商（<span id="analysis-provider">正在读取…</span>）。只发送完成本次分析所需的数据。</p>
+        <p>分析基于你主动记录的内容，缺记录的部分会按普适情况处理；结果不是医疗诊断。</p>
         <label class="recommend-consent-check"><input id="analysis-consent-check" type="checkbox" /> 我已了解并同意本次发送</label>
         <button id="analysis-generate" class="primary-btn" disabled>同意并生成分析</button>
       </div>
@@ -437,7 +429,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2 id="food-modal-title">加入冰箱</h2>
-        <button id="food-modal-close" class="close-btn">✕</button>
+        <button id="food-modal-close" class="close-btn" aria-label="关闭加入冰箱">✕</button>
       </div>
       <div class="form-row">
         <input id="food-qty" class="field" type="number" min="0" placeholder="数量（可留空）" />
@@ -457,7 +449,7 @@
     <div class="modal-content zone-modal-content">
       <div class="modal-header">
         <h2 id="zone-modal-title">分区管理</h2>
-        <button id="zone-modal-close" class="close-btn">✕</button>
+        <button id="zone-modal-close" class="close-btn" aria-label="关闭分区管理">✕</button>
       </div>
       <p id="zone-modal-sub" class="zone-modal-sub"></p>
       <div id="zone-modal-items" class="zone-modal-items"></div>
@@ -471,7 +463,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2 id="ingredient-modal-title">食材详情</h2>
-        <button id="ingredient-modal-close" class="close-btn">✕</button>
+        <button id="ingredient-modal-close" class="close-btn" aria-label="关闭食材详情">✕</button>
       </div>
       <div class="ingredient-detail">
         <img id="ingredient-img" class="ingredient-img" alt="" />
@@ -503,8 +495,8 @@
   <div id="skills-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="skills-title">
     <div class="modal-content" tabindex="-1">
       <div class="modal-header">
-        <h2 id="skills-title">技能中心</h2>
-        <button id="skills-close" class="close-btn" aria-label="关闭技能中心">✕</button>
+        <h2 id="skills-title">AI 回答能力</h2>
+        <button id="skills-close" class="close-btn" aria-label="关闭 AI 回答能力设置">✕</button>
       </div>
       <p class="skills-desc">选择启用的技能，AI 将据此调整回答方式与专业深度。</p>
       <div id="skills-list" class="skills-list"></div>

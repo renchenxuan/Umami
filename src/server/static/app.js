@@ -864,6 +864,12 @@ input.addEventListener("keydown", (e) => {
   }
 });
 
+// 输入框随内容自动增高（多行输入不被裁切，移动端两行占位可完整显示）
+input.addEventListener("input", () => {
+  input.style.height = "auto";
+  input.style.height = Math.min(input.scrollHeight, 140) + "px";
+});
+
 // 输入区快捷条：填入常用指令（不自动发送，方便用户补全）
 document.querySelectorAll(".quick-chip").forEach((chip) => {
   chip.addEventListener("click", () => {
@@ -931,6 +937,18 @@ function renderConversationList() {
       item.className = "conversation-item" + (c.id === currentConversationId ? " active" : "");
       if (reminderConversations.has(c.id)) item.classList.add("has-reminder");
       item.dataset.id = c.id;
+      // 键盘可达：会话项可聚焦、回车/空格切换，重命名有独立按钮（不再只靠双击）
+      const isActive = c.id === currentConversationId;
+      item.setAttribute("role", "button");
+      item.tabIndex = 0;
+      item.setAttribute("aria-label", `${isActive ? "当前会话" : "切换到会话"}：${c.title || "新对话"}`);
+      if (isActive) item.setAttribute("aria-current", "true");
+      item.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          selectConversation(c.id);
+        }
+      });
 
       const avatar = document.createElement("span");
       avatar.className = "conversation-avatar";
@@ -959,6 +977,16 @@ function renderConversationList() {
       body.appendChild(titleRow);
       body.appendChild(preview);
 
+      const rename = document.createElement("button");
+      rename.className = "conversation-rename";
+      rename.textContent = "✎";
+      rename.title = "重命名会话";
+      rename.setAttribute("aria-label", `重命名会话：${c.title || "新对话"}`);
+      rename.addEventListener("click", (e) => {
+        e.stopPropagation();
+        startRenameConversation(c.id, title);
+      });
+
       const del = document.createElement("button");
       del.className = "conversation-delete";
       del.textContent = "✕";
@@ -971,6 +999,7 @@ function renderConversationList() {
 
       item.appendChild(avatar);
       item.appendChild(body);
+      item.appendChild(rename);
       item.appendChild(del);
       item.addEventListener("click", () => selectConversation(c.id));
       conversationList.appendChild(item);
@@ -1290,23 +1319,7 @@ async function saveSkillToggle(skillId, enabled) {
   }
 }
 
-// 初始化背景装饰
-(function initBgDecor() {
-  const decor = document.querySelector(".bg-decor");
-  if (!decor) return;
-  const items = [
-    { cls: "deco-item deco-leaf-1", svg: '<svg viewBox="0 0 48 48" width="64" height="64" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M24 8C16 14 12 22 13 28c1 6 6 9 11 6-3-5-2-14 0-26z"/></svg>' },
-    { cls: "deco-item deco-leaf-2", svg: '<svg viewBox="0 0 48 48" width="52" height="52" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M24 10C30 7 38 12 40 20c2 8-2 18-8 22-4 2-8-2-8-8s2-10 0-24z"/></svg>' },
-    { cls: "deco-item deco-leaf-3", svg: '<svg viewBox="0 0 48 48" width="56" height="56" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M16 32c4 3 10 4 14 2s6-8 4-14-2-8-8-10-14-6-4 4-8 10-4 22z"/></svg>' },
-    { cls: "deco-item deco-dish-1", svg: '<svg viewBox="0 0 48 48" width="60" height="60" fill="none" stroke="currentColor" stroke-width="1.2"><ellipse cx="24" cy="28" rx="16" ry="10"/><path d="M8 28h32"/><path d="M18 18v4"/><path d="M30 18v4"/></svg>' },
-  ];
-  for (const item of items) {
-    const el = document.createElement("div");
-    el.className = item.cls;
-    el.innerHTML = item.svg;
-    decor.appendChild(el);
-  }
-})();
+// 初始化背景装饰（v3.1 设计收敛：移除悬浮装饰层）
 
 // ---- 厨房台面剪影场景（融入极光底部，随晨昏变灯光） ----
 (function initBgScene() {
@@ -1422,9 +1435,24 @@ function saveHiddenBoardCards(cards) {
   restoreBoardBtn.classList.toggle("hidden", cards.size === 0);
 }
 
-function defaultCardPos(typeKey, index) {
-  const col = { ingredients: 0, workouts: 1, goals: 2, habits: 3, recipe: 4, fridge: 5, diet: 6 }[typeKey] ?? 0;
-  return { x: 48 + col * 296, y: 40 + (index % 6) * 170 };
+// v3.1：未拖拽过的卡片不再按固定列坐标摆放（窄屏会溢出/叠压），
+// 改为按画布宽度分列的瀑布流：每次放到当前最矮的一列。
+// 用户拖拽过的卡片仍保留 localStorage 里的自由位置。
+function createBoardFlow() {
+  const CELL_W = 300, PAD = 40, GAP_Y = 24, TOP = 40;
+  let colHeights = [];
+  const cols = () => Math.max(1, Math.floor(((boardCanvas.clientWidth || 1200) - PAD) / CELL_W));
+  return {
+    place(card) {
+      const n = cols();
+      if (colHeights.length !== n) colHeights = new Array(n).fill(TOP);
+      let c = 0;
+      for (let i = 1; i < n; i++) if (colHeights[i] < colHeights[c]) c = i;
+      card.style.left = (PAD + c * CELL_W) + "px";
+      card.style.top = colHeights[c] + "px";
+      colHeights[c] += card.offsetHeight + GAP_Y;
+    },
+  };
 }
 
 function makeDraggable(cardEl, key) {
@@ -1734,30 +1762,42 @@ async function renderBoard() {
   restoreBoardBtn.classList.toggle("hidden", hidden.size === 0);
   const inner = ensureBoardInner();
   inner.innerHTML = "";
+  const flow = createBoardFlow();
+  // 有已保存位置（用户拖过）的卡片用原坐标，否则交给瀑布流自动排布
+  const place = (card, key, fallbackPos) => {
+    inner.appendChild(card);
+    const saved = positions[key];
+    if (saved) {
+      card.style.left = saved.x + "px";
+      card.style.top = saved.y + "px";
+    } else {
+      flow.place(card);
+    }
+  };
   let order = 0;
 
   if (!hidden.has("recipe:board")) {
-    const card = await buildRecipeCard(positions["recipe:board"] || defaultCardPos("recipe", 0));
+    const card = await buildRecipeCard({ x: 0, y: 0 });
     card.style.animationDelay = (order * 35) + "ms";
-    inner.appendChild(card);
+    place(card, "recipe:board");
     order++;
   }
   if (!hidden.has("favorites:board")) {
-    const card = await buildFavoritesCard(positions["favorites:board"] || defaultCardPos("recipe", 1));
+    const card = await buildFavoritesCard({ x: 0, y: 0 });
     card.style.animationDelay = (order * 35) + "ms";
-    inner.appendChild(card);
+    place(card, "favorites:board");
     order++;
   }
   if (!hidden.has("fridge:board")) {
-    const card = await buildFridgeCard(positions["fridge:board"] || defaultCardPos("fridge", 0));
+    const card = await buildFridgeCard({ x: 0, y: 0 });
     card.style.animationDelay = (order * 35) + "ms";
-    inner.appendChild(card);
+    place(card, "fridge:board");
     order++;
   }
   if (!hidden.has("diet:board")) {
-    const card = await buildDietCard(positions["diet:board"] || defaultCardPos("diet", 0));
+    const card = await buildDietCard({ x: 0, y: 0 });
     card.style.animationDelay = (order * 35) + "ms";
-    inner.appendChild(card);
+    place(card, "diet:board");
     order++;
   }
 
@@ -1771,10 +1811,9 @@ async function renderBoard() {
     items.forEach((item, index) => {
       const key = type.key + ":" + item.id;
       if (hidden.has(key)) return;
-      const pos = positions[key] || defaultCardPos(type.key, index);
-      const card = buildCard(type, item, key, pos);
+      const card = buildCard(type, item, key, { x: 0, y: 0 });
       card.style.animationDelay = (order * 35) + "ms";
-      inner.appendChild(card);
+      place(card, key);
       order++;
     });
   }
@@ -2137,7 +2176,7 @@ function bindFridgeAIButton() {
   btn.addEventListener("click", async () => {
     const resultEl = document.getElementById("fridge-ai-result");
     btn.disabled = true;
-    if (resultEl) { resultEl.classList.remove("hidden"); resultEl.textContent = "AI 正在分析冰箱保鲜状态…"; }
+    if (resultEl) { resultEl.classList.remove("hidden"); resultEl.textContent = "AI 正在生成保鲜建议…"; }
     try {
       const data = await apiRequest("/api/v1/fridge/ai-check", { method: "POST" });
       if (resultEl) {
@@ -2146,7 +2185,7 @@ function bindFridgeAIButton() {
       }
     } catch (e) {
       if (resultEl) {
-        resultEl.textContent = "AI 检测失败：" + (e && e.message ? e.message : "未知错误");
+        resultEl.textContent = "保鲜建议生成失败：" + (e && e.message ? e.message : "未知错误");
         resultEl.classList.remove("hidden");
       }
     } finally {
@@ -2784,39 +2823,6 @@ async function removeDiet(id) {
 
 document.getElementById("diet-form").addEventListener("submit", (e) => { e.preventDefault(); addDiet(); });
 
-const dietQuickBtn = document.getElementById("diet-quick-btn");
-const dietQuickPop = document.getElementById("diet-quick-pop");
-const dqMeal = document.getElementById("dq-meal");
-const dqFoods = document.getElementById("dq-foods");
-if (dietQuickBtn && dietQuickPop) {
-  const guessMeal = () => {
-    const h = new Date().getHours();
-    return h >= 6 && h < 11 ? "早餐" : h >= 11 && h < 15 ? "午餐" : h >= 17 && h < 22 ? "晚餐" : "加餐";
-  };
-  const closeQuickPop = () => dietQuickPop.classList.add("hidden");
-  dietQuickBtn.addEventListener("click", () => {
-    const opened = dietQuickPop.classList.toggle("hidden") === false;
-    if (opened) { dqMeal.value = guessMeal(); dqFoods.value = ""; dqFoods.focus(); }
-  });
-  document.getElementById("dq-cancel").addEventListener("click", closeQuickPop);
-  document.getElementById("dq-submit").addEventListener("click", async () => {
-    const foodsStr = dqFoods.value.trim();
-    if (!foodsStr) { dqFoods.focus(); return; }
-    const list = foodsStr.split(/[,，、]/).map((s) => s.trim()).filter(Boolean).map((name) => ({ name }));
-    try {
-      await apiRequest("/api/v1/diet-logs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: todayISO(), meal_type: dqMeal.value, foods: list, note: "" }),
-      });
-      closeQuickPop();
-      await loadDiet();
-      showAppStatus("已快速记录「" + dqMeal.value + "」", true);
-    } catch (e) { showAppStatus("快速记录失败：" + e.message); }
-  });
-  dqFoods.addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("dq-submit").click(); });
-}
-
 // ---- 个人资料 ----
 const pHeight = document.getElementById("p-height");
 const pAge = document.getElementById("p-age");
@@ -3188,6 +3194,18 @@ function renderRecCard(item, kind) {
 
 function renderRecommendation(data) {
   recommendResult.innerHTML = "";
+  // 诚实披露：区分「结合了档案的个性化推荐」与「无档案时的普适建议」
+  if (data.hasProfile === false) {
+    const badge = document.createElement("div");
+    badge.className = "rec-profile-badge";
+    badge.textContent = "未建立健康档案：以下为适合久坐人群的普适建议。到「健康档案」补全体重等信息后，推荐会更贴合你。";
+    recommendResult.appendChild(badge);
+  } else if (data.hasProfile === true) {
+    const badge = document.createElement("div");
+    badge.className = "rec-profile-badge personalized";
+    badge.textContent = "已结合你的身体数据、目标与冰箱食材生成。";
+    recommendResult.appendChild(badge);
+  }
   if (data.raw && !data.daily.length && !data.weekly.length && !data.workout.length) {
     const sec = document.createElement("div");
     sec.className = "recommend-section";
@@ -3487,7 +3505,8 @@ saveBtn.addEventListener("click", async () => {
   }
 });
 
-// ---- 视觉增强：光标聚光 + 按钮涟漪 ----
+// ---- 视觉增强：氛围层视差 + 按钮涟漪 ----
+// --mx/--my 驱动蒸汽/光尘/台面的轻微鼠标视差（v3.1 已移除光标聚光层）
 const rootEl = document.documentElement;
 let glowX = window.innerWidth / 2, glowY = window.innerHeight / 2, glowRAF = null;
 function applyGlow() {
@@ -3498,7 +3517,6 @@ function applyGlow() {
 window.addEventListener("pointermove", (e) => {
   glowX = e.clientX;
   glowY = e.clientY;
-  if (!document.body.classList.contains("has-cursor")) document.body.classList.add("has-cursor");
   if (glowRAF === null) glowRAF = requestAnimationFrame(applyGlow);
 }, { passive: true });
 

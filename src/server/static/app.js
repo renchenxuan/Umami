@@ -3953,6 +3953,7 @@ const tutorialServings = document.getElementById("t-servings");
 const tutorialConsent = document.getElementById("t-consent");
 const tutorialGenerate = document.getElementById("t-generate");
 const tutorialFilters = document.getElementById("tutorial-filters");
+const tutorialSearch = document.getElementById("tutorial-search");
 const tutorialNewBtn = document.getElementById("tutorial-new-btn");
 const tutorialEditorModal = document.getElementById("tutorial-editor-modal");
 const tutorialEditorForm = document.getElementById("tutorial-editor-form");
@@ -3969,6 +3970,7 @@ const editorSave = document.getElementById("editor-save");
 
 let allTutorials = [];
 let tutorialFilterMeal = "";
+let tutorialQuery = "";
 let editorTarget = null; // null=新建，否则为待编辑的教程对象
 
 function setTutorialsStatus(message, ok) {
@@ -3988,12 +3990,21 @@ function tutorialMeal(t) {
   return steps.meal || "";
 }
 
+// 搜索：菜名或食材名匹配（大小写不敏感），与餐次筛选叠加
+function tutorialMatches(t, q) {
+  if (!q) return true;
+  const needle = q.toLowerCase();
+  if ((t.title || "").toLowerCase().includes(needle)) return true;
+  return Array.isArray(t.ingredients) && t.ingredients.some((ing) => (ing && ing.name || "").toLowerCase().includes(needle));
+}
+
 function renderTutorialList() {
   if (!tutorialsList) return;
-  const items = allTutorials.filter((t) => !tutorialFilterMeal || tutorialMeal(t) === tutorialFilterMeal);
+  const items = allTutorials.filter((t) => (!tutorialFilterMeal || tutorialMeal(t) === tutorialFilterMeal) && tutorialMatches(t, tutorialQuery.trim()));
   tutorialsList.innerHTML = "";
   if (!items.length) {
-    tutorialsList.innerHTML = '<div class="fh-empty">' + (tutorialFilterMeal ? "这个餐次还没有教程" : "还没有教程：挑一道内置菜谱，或让 AI / 自己写一份") + "</div>";
+    const q = tutorialQuery.trim();
+    tutorialsList.innerHTML = '<div class="fh-empty">' + (q ? `没有找到与「${q}」相关的菜谱，换个关键词试试` : tutorialFilterMeal ? "这个餐次还没有教程" : "还没有教程：挑一道内置菜谱，或让 AI / 自己写一份") + "</div>";
     return;
   }
   for (const t of items) {
@@ -4149,6 +4160,11 @@ async function loadTutorials() {
     tutorialsList.innerHTML = '<div class="fh-empty">加载失败：' + escapeHtml(e.message) + "</div>";
   }
 }
+
+if (tutorialSearch) tutorialSearch.addEventListener("input", () => {
+  tutorialQuery = tutorialSearch.value;
+  renderTutorialList();
+});
 
 if (tutorialFilters) tutorialFilters.addEventListener("click", (e) => {
   const btn = e.target instanceof Element && e.target.closest(".tutorial-filter");

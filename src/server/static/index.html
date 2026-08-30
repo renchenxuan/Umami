@@ -244,11 +244,14 @@
           <div id="tutorial-result" class="tutorial-result hidden"></div>
           <div class="tutorial-list-head">
             <h3 class="tutorial-subhead">菜谱大全</h3>
-            <div id="tutorial-filters" class="tutorial-filters" role="group" aria-label="按餐次筛选">
+            <div class="tutorial-tools">
+              <input id="tutorial-search" class="field tutorial-search" type="text" placeholder="搜菜名或食材，如 番茄" aria-label="搜索菜谱" maxlength="40" />
+              <div id="tutorial-filters" class="tutorial-filters" role="group" aria-label="按餐次筛选">
               <button type="button" class="tutorial-filter active" data-meal="">全部</button>
               <button type="button" class="tutorial-filter" data-meal="早餐">早餐</button>
               <button type="button" class="tutorial-filter" data-meal="午餐">午餐</button>
               <button type="button" class="tutorial-filter" data-meal="晚餐">晚餐</button>
+            </div>
             </div>
           </div>
           <div id="tutorials-list" class="list"></div>

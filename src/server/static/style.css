@@ -4523,3 +4523,13 @@ html[data-ambient="reduced"] .bg-dust { display: none !important; }
   #skills-modal .skills-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
   #skills-modal .skills-desc { max-width: 65ch; }
 }
+
+/* 菜谱大全：搜索框与筛选同行，药丸造型与 chips 呼应 */
+.tutorial-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tutorial-search {
+  width: 210px;
+  max-width: 60vw;
+  padding: 6px 14px;
+  font-size: 13px;
+  border-radius: 999px;
+}

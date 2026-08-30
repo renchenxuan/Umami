@@ -1392,6 +1392,7 @@ const footerEl = document.getElementById("footer");
 const fridgeView = document.getElementById("fridge");
 const fitnessView = document.getElementById("fitness");
 const dietView = document.getElementById("diet");
+const tutorialsView = document.getElementById("tutorials");
 const profileView = document.getElementById("profile");
 let boardInner = null;
 
@@ -1467,12 +1468,31 @@ function makeDraggable(cardEl, key) {
     cardEl.classList.add("dragging");
     cardEl.setPointerCapture(e.pointerId);
 
+    // 拖拽物理：记录速度（px/ms）驱动跟手倾斜；松手后惯性滑行 + 弹性落位
+    const reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let lastX = e.clientX;
+    let lastY = e.clientY;
+    let lastT = performance.now();
+    let vx = 0;
+    let vy = 0;
+
     const onMove = (ev) => {
       cardEl.style.left = (origLeft + ev.clientX - startX) + "px";
       cardEl.style.top = (origTop + ev.clientY - startY) + "px";
+      const now = performance.now();
+      const dt = Math.max(now - lastT, 1);
+      vx = 0.7 * vx + 0.3 * ((ev.clientX - lastX) / dt);
+      vy = 0.7 * vy + 0.3 * ((ev.clientY - lastY) / dt);
+      lastX = ev.clientX;
+      lastY = ev.clientY;
+      lastT = now;
+      if (!reducedMotion) {
+        const tilt = Math.max(-6, Math.min(6, vx * 12));
+        cardEl.style.setProperty("--tilt", tilt.toFixed(2) + "deg");
+      }
     };
-    const onUp = () => {
-      cardEl.classList.remove("dragging");
+
+    const finalize = () => {
       const host = boardInner || boardCanvas;
       const maxX = Math.max(0, host.clientWidth - cardEl.offsetWidth);
       const maxY = Math.max(0, host.clientHeight - cardEl.offsetHeight);
@@ -1480,10 +1500,38 @@ function makeDraggable(cardEl, key) {
       const y = Math.round(Math.max(0, Math.min(cardEl.offsetTop, maxY)));
       cardEl.style.left = x + "px";
       cardEl.style.top = y + "px";
+      cardEl.style.removeProperty("--tilt");
+      cardEl.classList.remove("dragging");
       saveBoardPosition(key, x, y);
+      layoutBoardInner();
+    };
+
+    // 惯性滑行：速度指数衰减，碰壁轻微反弹；足够慢后落位保存
+    const glide = () => {
+      const host = boardInner || boardCanvas;
+      const maxX = Math.max(0, host.clientWidth - cardEl.offsetWidth);
+      const maxY = Math.max(0, host.clientHeight - cardEl.offsetHeight);
+      const step = () => {
+        if (Math.hypot(vx, vy) < 0.02) { finalize(); return; }
+        let x = cardEl.offsetLeft + vx * 16;
+        let y = cardEl.offsetTop + vy * 16;
+        if (x < 0 || x > maxX) { vx = -vx * 0.35; x = Math.max(0, Math.min(x, maxX)); }
+        if (y < 0 || y > maxY) { vy = -vy * 0.35; y = Math.max(0, Math.min(y, maxY)); }
+        cardEl.style.left = x + "px";
+        cardEl.style.top = y + "px";
+        vx *= 0.92;
+        vy *= 0.92;
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    };
+
+    const onUp = () => {
       cardEl.removeEventListener("pointermove", onMove);
       cardEl.removeEventListener("pointerup", onUp);
       cardEl.removeEventListener("pointercancel", onUp);
+      if (reducedMotion || Math.hypot(vx, vy) < 0.15) finalize();
+      else glide();
     };
     cardEl.addEventListener("pointermove", onMove);
     cardEl.addEventListener("pointerup", onUp);
@@ -1494,7 +1542,7 @@ function makeDraggable(cardEl, key) {
 function buildCard(type, item, key, pos) {
   const { title, sub } = type.fields(item);
   const el = document.createElement("div");
-  el.className = "board-card card-" + type.key;
+  el.className = "board-card spotlight card-" + type.key;
   el.style.left = pos.x + "px";
   el.style.top = pos.y + "px";
 
@@ -1587,7 +1635,7 @@ function layoutBoardInner() {
 
 function makeCardShell(key, extraClass, pos) {
   const el = document.createElement("div");
-  el.className = "board-card " + (extraClass || "");
+  el.className = "board-card spotlight " + (extraClass || "");
   el.style.left = pos.x + "px";
   el.style.top = pos.y + "px";
   const head = document.createElement("div");
@@ -1841,6 +1889,7 @@ function showView(view) {
   fridgeView.classList.toggle("hidden", view !== "fridge");
   fitnessView.classList.toggle("hidden", view !== "fitness");
   dietView.classList.toggle("hidden", view !== "diet");
+  tutorialsView.classList.toggle("hidden", view !== "tutorials");
   profileView.classList.toggle("hidden", view !== "profile");
   document.querySelectorAll(".nav-btn").forEach((b) => {
     const active = b.dataset.view === view;
@@ -1852,10 +1901,11 @@ function showView(view) {
   if (view === "board") renderBoard();
   if (view === "fitness") loadFitness();
   if (view === "diet") loadDiet();
+  if (view === "tutorials") loadTutorials();
   if (view === "profile") loadProfile();
   const shown = view === "chat" ? messages
     : view === "board" ? board
-    : { fridge: fridgeView, fitness: fitnessView, diet: dietView, profile: profileView }[view];
+    : { fridge: fridgeView, fitness: fitnessView, diet: dietView, tutorials: tutorialsView, profile: profileView }[view];
   if (shown && !shown.classList.contains("hidden")) {
     shown.style.animation = "none";
     void shown.offsetWidth;
@@ -3387,6 +3437,8 @@ async function loadSettings() {
     renderKeyHint();
     populateModelSelect();
     updateModelAvailability();
+    refreshMapsBanner();
+    renderExternalServices();
   } catch {
     /* 忽略 */
   }
@@ -3555,6 +3607,8 @@ document.addEventListener("error", (e) => {
     currentSettings = s;
     if (s.uiTheme) applyTheme(s.uiTheme);
     updateModelAvailability();
+    refreshMapsBanner();
+    renderExternalServices();
   }).catch(() => {});
 })();
 
@@ -3931,6 +3985,486 @@ if (scheduleForm) scheduleForm.addEventListener("submit", async (e) => {
   } catch (err) {
     setSchedulesStatus("创建失败：" + err.message);
   }
+});
+
+// ---- 开小灶（烹饪教学页） ----
+const tutorialsList = document.getElementById("tutorials-list");
+const tutorialResult = document.getElementById("tutorial-result");
+const tutorialsStatus = document.getElementById("tutorials-status");
+const tutorialForm = document.getElementById("tutorial-form");
+const tutorialDish = document.getElementById("t-dish");
+const tutorialServings = document.getElementById("t-servings");
+const tutorialConsent = document.getElementById("t-consent");
+const tutorialGenerate = document.getElementById("t-generate");
+const tutorialFilters = document.getElementById("tutorial-filters");
+const tutorialNewBtn = document.getElementById("tutorial-new-btn");
+const tutorialEditorModal = document.getElementById("tutorial-editor-modal");
+const tutorialEditorForm = document.getElementById("tutorial-editor-form");
+const editorTitle = document.getElementById("editor-title");
+const editorServings = document.getElementById("editor-servings");
+const editorMinutes = document.getElementById("editor-minutes");
+const editorMeal = document.getElementById("editor-meal");
+const editorIngredients = document.getElementById("editor-ingredients");
+const editorPrep = document.getElementById("editor-prep");
+const editorCook = document.getElementById("editor-cook");
+const editorTips = document.getElementById("editor-tips");
+const editorStatus = document.getElementById("editor-status");
+const editorSave = document.getElementById("editor-save");
+
+let allTutorials = [];
+let tutorialFilterMeal = "";
+let editorTarget = null; // null=新建，否则为待编辑的教程对象
+
+function setTutorialsStatus(message, ok) {
+  if (!tutorialsStatus) return;
+  tutorialsStatus.textContent = message;
+  tutorialsStatus.className = "settings-status " + (ok ? "ok" : "err");
+}
+
+// 同意勾选前不允许发起生成（与推荐/分析弹窗同一诚实约束）
+if (tutorialConsent && tutorialGenerate) {
+  tutorialGenerate.disabled = !tutorialConsent.checked;
+  tutorialConsent.addEventListener("change", () => { tutorialGenerate.disabled = !tutorialConsent.checked; });
+}
+
+function tutorialMeal(t) {
+  const steps = t && t.steps && typeof t.steps === "object" ? t.steps : {};
+  return steps.meal || "";
+}
+
+function renderTutorialList() {
+  if (!tutorialsList) return;
+  const items = allTutorials.filter((t) => !tutorialFilterMeal || tutorialMeal(t) === tutorialFilterMeal);
+  tutorialsList.innerHTML = "";
+  if (!items.length) {
+    tutorialsList.innerHTML = '<div class="fh-empty">' + (tutorialFilterMeal ? "这个餐次还没有教程" : "还没有教程：挑一道内置菜谱，或让 AI / 自己写一份") + "</div>";
+    return;
+  }
+  for (const t of items) {
+    const steps = t.steps && typeof t.steps === "object" ? t.steps : {};
+    const ingCount = Array.isArray(t.ingredients) ? t.ingredients.length : 0;
+    const meal = tutorialMeal(t);
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "list-row tutorial-row spotlight";
+    row.innerHTML = '<div class="row-main"><span class="row-title-line">' +
+      (t.source === "preset" ? '<span class="tutorial-badge">内置</span>' : "") +
+      '<strong>' + escapeHtml(t.title || "未命名教程") + '</strong></span>' +
+      '<span class="row-sub">' + [
+        meal ? escapeHtml(meal) : "",
+        steps.servings ? steps.servings + " 人份" : "",
+        steps.total_minutes ? "约 " + steps.total_minutes + " 分钟" : "",
+        ingCount ? ingCount + " 种食材" : "",
+      ].filter(Boolean).join(" · ") + '</span></div>' +
+      '<span class="row-arrow" aria-hidden="true">→</span>';
+    row.addEventListener("click", () => renderTutorialDetail(t));
+    tutorialsList.appendChild(row);
+  }
+}
+
+function renderTutorialDetail(t) {
+  if (!tutorialResult) return;
+  const steps = t.steps && typeof t.steps === "object" ? t.steps : {};
+  const ingredients = Array.isArray(t.ingredients) ? t.ingredients : [];
+  const prep = Array.isArray(steps.prep) ? steps.prep : [];
+  const cook = Array.isArray(steps.cook) ? steps.cook : [];
+  const servings = steps.servings || t.servings;
+  tutorialResult.innerHTML = "";
+  tutorialResult.classList.remove("hidden");
+
+  const head = document.createElement("div");
+  head.className = "tutorial-head";
+  const titleWrap = document.createElement("div");
+  titleWrap.className = "tutorial-title-wrap";
+  const h = document.createElement("h3");
+  h.className = "tutorial-title";
+  h.textContent = t.title || "未命名教程";
+  titleWrap.appendChild(h);
+  if (t.source === "preset") {
+    const badge = document.createElement("span");
+    badge.className = "tutorial-badge";
+    badge.textContent = "内置";
+    titleWrap.appendChild(badge);
+  }
+  const meta = document.createElement("span");
+  meta.className = "tutorial-meta";
+  meta.textContent = [
+    tutorialMeal(t),
+    servings ? servings + " 人份" : "",
+    steps.total_minutes ? "约 " + steps.total_minutes + " 分钟" : "",
+  ].filter(Boolean).join(" · ");
+  head.appendChild(titleWrap);
+  if (meta.textContent) head.appendChild(meta);
+  const actions = document.createElement("div");
+  actions.className = "tutorial-actions";
+  const editBtn = document.createElement("button");
+  editBtn.type = "button";
+  editBtn.className = "board-card-action";
+  editBtn.textContent = "编辑";
+  editBtn.setAttribute("aria-label", `编辑教程：${t.title || "未命名"}`);
+  editBtn.addEventListener("click", () => openTutorialEditor(t));
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "board-card-action";
+  closeBtn.textContent = "收起 ✕";
+  closeBtn.setAttribute("aria-label", `收起教程：${t.title || "未命名"}`);
+  closeBtn.addEventListener("click", () => {
+    tutorialResult.classList.add("hidden");
+    // 收起后平滑回到菜谱大全列表，不留在空白处
+    document.querySelector(".tutorial-list-head")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  actions.appendChild(editBtn);
+  actions.appendChild(closeBtn);
+  head.appendChild(actions);
+  tutorialResult.appendChild(head);
+
+  const ingSec = document.createElement("div");
+  ingSec.className = "tutorial-section";
+  ingSec.innerHTML = '<h4>🧺 食材准备</h4>';
+  const ingTable = document.createElement("table");
+  ingTable.className = "tutorial-ingredients";
+  ingTable.innerHTML = '<thead><tr><th scope="col">食材</th><th scope="col">用量</th><th scope="col">备注</th></tr></thead>';
+  const tbody = document.createElement("tbody");
+  for (const ing of ingredients) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${escapeHtml(ing.name || "")}</td><td>${escapeHtml(ing.amount || "")}</td><td>${escapeHtml(ing.note || "")}</td>`;
+    tbody.appendChild(tr);
+  }
+  ingTable.appendChild(tbody);
+  ingSec.appendChild(ingTable);
+  tutorialResult.appendChild(ingSec);
+
+  const phase = (title, items, cls) => {
+    if (!items.length) return;
+    const sec = document.createElement("div");
+    sec.className = "tutorial-section " + (cls || "");
+    sec.innerHTML = `<h4>${title}</h4>`;
+    const ol = document.createElement("ol");
+    ol.className = "fh-steps";
+    for (const s of items) {
+      const li = document.createElement("li");
+      li.textContent = s;
+      ol.appendChild(li);
+    }
+    sec.appendChild(ol);
+    tutorialResult.appendChild(sec);
+  };
+  phase("🔪 切配", prep);
+  phase("🔥 烹饪", cook, "tutorial-cook");
+
+  if (steps.tips) {
+    const tips = document.createElement("div");
+    tips.className = "tutorial-tips";
+    tips.innerHTML = "<h4>💡 小贴士与常见失败点</h4>";
+    const p = document.createElement("p");
+    p.textContent = steps.tips;
+    tips.appendChild(p);
+    tutorialResult.appendChild(tips);
+  }
+
+  if (t.id) {
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "secondary-btn danger tutorial-del";
+    del.textContent = "删除此教程";
+    del.setAttribute("aria-label", `删除教程：${t.title || "未命名"}`);
+    del.addEventListener("click", async () => {
+      if (!confirm(`删除教程《${t.title || "未命名"}》？${t.source === "preset" ? "内置教程删除后不会恢复，确定吗？" : ""}`)) return;
+      try {
+        await apiRequest(`/api/v1/tutorials/${t.id}`, { method: "DELETE" });
+        tutorialResult.classList.add("hidden");
+        setTutorialsStatus("已删除", true);
+        loadTutorials();
+      } catch (e) { setTutorialsStatus("删除失败：" + e.message); }
+    });
+    tutorialResult.appendChild(del);
+  }
+  tutorialResult.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function loadTutorials() {
+  if (!tutorialsList) return;
+  tutorialsList.innerHTML = '<div class="tutorial-skeleton"></div><div class="tutorial-skeleton"></div><div class="tutorial-skeleton"></div>';
+  try {
+    const list = await apiRequest("/api/v1/tutorials");
+    allTutorials = Array.isArray(list) ? list : [];
+    renderTutorialList();
+  } catch (e) {
+    tutorialsList.innerHTML = '<div class="fh-empty">加载失败：' + escapeHtml(e.message) + "</div>";
+  }
+}
+
+if (tutorialFilters) tutorialFilters.addEventListener("click", (e) => {
+  const btn = e.target instanceof Element && e.target.closest(".tutorial-filter");
+  if (!btn) return;
+  tutorialFilterMeal = btn.dataset.meal || "";
+  tutorialFilters.querySelectorAll(".tutorial-filter").forEach((b) => b.classList.toggle("active", b === btn));
+  renderTutorialList();
+});
+
+// ---- 教程编辑器：新建 + 修改（内置/AI/自建都可改） ----
+function editorIngredientRow(ing) {
+  const row = document.createElement("div");
+  row.className = "editor-ing-row";
+  row.innerHTML =
+    '<input class="field editor-ing-name" placeholder="食材名" maxlength="120" />' +
+    '<input class="field editor-ing-amount" placeholder="用量，如 400g" maxlength="80" />' +
+    '<input class="field editor-ing-note" placeholder="备注（可选）" maxlength="200" />';
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "conversation-delete editor-ing-del";
+  del.textContent = "✕";
+  del.setAttribute("aria-label", "删除该食材行");
+  del.addEventListener("click", () => row.remove());
+  row.appendChild(del);
+  if (ing) {
+    row.querySelector(".editor-ing-name").value = ing.name || "";
+    row.querySelector(".editor-ing-amount").value = ing.amount || "";
+    row.querySelector(".editor-ing-note").value = ing.note || "";
+  }
+  return row;
+}
+
+function openTutorialEditor(t) {
+  editorTarget = t || null;
+  editorTitle.value = t ? (t.title || "") : "";
+  const steps = t && t.steps && typeof t.steps === "object" ? t.steps : {};
+  editorServings.value = steps.servings || "";
+  editorMinutes.value = steps.total_minutes || "";
+  editorMeal.value = tutorialMeal(t);
+  editorIngredients.innerHTML = "";
+  const ings = Array.isArray(t && t.ingredients) ? t.ingredients : [];
+  if (ings.length) for (const ing of ings) editorIngredients.appendChild(editorIngredientRow(ing));
+  else editorIngredients.appendChild(editorIngredientRow(null));
+  editorPrep.value = (steps.prep || []).join("\n");
+  editorCook.value = (steps.cook || []).join("\n");
+  editorTips.value = steps.tips || "";
+  document.getElementById("tutorial-editor-title").textContent = t ? "编辑教程" : "新建教程";
+  editorStatus.textContent = "";
+  editorStatus.className = "settings-status";
+  openModal(tutorialEditorModal, editorTitle);
+}
+if (tutorialNewBtn) tutorialNewBtn.addEventListener("click", () => openTutorialEditor(null));
+document.getElementById("editor-add-ingredient").addEventListener("click", () => editorIngredients.appendChild(editorIngredientRow(null)));
+document.getElementById("tutorial-editor-close").addEventListener("click", () => closeModal(tutorialEditorModal));
+
+function setEditorStatus(message, ok) {
+  editorStatus.textContent = message;
+  editorStatus.className = "settings-status " + (ok ? "ok" : "err");
+}
+
+if (tutorialEditorForm) tutorialEditorForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const title = editorTitle.value.trim();
+  if (!title) { editorTitle.focus(); return setEditorStatus("请填写菜名"); }
+  const ingredients = [...editorIngredients.querySelectorAll(".editor-ing-row")].map((row) => ({
+    name: row.querySelector(".editor-ing-name").value.trim(),
+    amount: row.querySelector(".editor-ing-amount").value.trim(),
+    note: row.querySelector(".editor-ing-note").value.trim(),
+  })).filter((i) => i.name || i.amount);
+  if (!ingredients.length) return setEditorStatus("至少写一种食材（名称 + 用量）");
+  const splitLines = (v) => v.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const payload = {
+    title,
+    ingredients,
+    steps: {
+      servings: editorServings.value ? Number(editorServings.value) : undefined,
+      total_minutes: editorMinutes.value ? Number(editorMinutes.value) : undefined,
+      meal: editorMeal.value,
+      prep: splitLines(editorPrep.value),
+      cook: splitLines(editorCook.value),
+      tips: editorTips.value.trim(),
+    },
+  };
+  editorSave.disabled = true;
+  try {
+    const saved = editorTarget && editorTarget.id
+      ? await apiRequest(`/api/v1/tutorials/${editorTarget.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+      : await apiRequest("/api/v1/tutorials", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    closeModal(tutorialEditorModal);
+    setTutorialsStatus(`《${saved.title}》已保存`, true);
+    renderTutorialDetail(saved);
+    loadTutorials();
+  } catch (err) {
+    setEditorStatus("保存失败：" + err.message);
+  } finally {
+    editorSave.disabled = false;
+  }
+});
+
+if (tutorialForm) tutorialForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const dish = (tutorialDish.value || "").trim();
+  if (!dish) { tutorialDish.focus(); setTutorialsStatus("请先填写想学的菜名"); return; }
+  const servings = Number(tutorialServings.value);
+  const body = { privacyConsent: true, dish };
+  if (Number.isInteger(servings) && servings >= 1 && servings <= 20) body.servings = servings;
+  tutorialGenerate.disabled = true;
+  const original = tutorialGenerate.textContent;
+  tutorialGenerate.textContent = "生成中…";
+  setTutorialsStatus("AI 正在生成教学菜谱…", true);
+  try {
+    const tutorial = await apiRequest("/api/v1/tutorials/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setTutorialsStatus(`《${tutorial.title}》已生成并保存`, true);
+    renderTutorialDetail(tutorial);
+    tutorialDish.value = "";
+    tutorialServings.value = "";
+    loadTutorials();
+    spawnSuccessRipple();
+  } catch (err) {
+    setTutorialsStatus("生成失败：" + err.message);
+  } finally {
+    tutorialGenerate.disabled = !tutorialConsent.checked;
+    tutorialGenerate.textContent = original;
+  }
+});
+
+// ---- 交互质感：Spotlight 边框 + 主按钮磁性微跟随 ----
+// 动机：悬停反馈（光随手动）与主操作引力；只写 CSS 变量、只动 transform/opacity。
+(function initTactileEffects() {
+  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduced) return;
+  let pending = null;
+  document.addEventListener("pointermove", (e) => {
+    if (pending) return;
+    pending = requestAnimationFrame(() => {
+      pending = null;
+      const card = e.target instanceof Element ? e.target.closest(".spotlight") : null;
+      if (!card) return;
+      const rect = card.getBoundingClientRect();
+      card.style.setProperty("--sx", (((e.clientX - rect.left) / rect.width) * 100).toFixed(1) + "%");
+      card.style.setProperty("--sy", (((e.clientY - rect.top) / rect.height) * 100).toFixed(1) + "%");
+    });
+  }, { passive: true });
+
+  // 磁性：主 CTA 悬停时向光标轻移 ≤4px，移出回弹
+  for (const cta of [document.getElementById("t-generate")]) {
+    if (!cta) continue;
+    cta.style.transition = "transform 0.2s var(--ease)";
+    cta.addEventListener("pointermove", (e) => {
+      const rect = cta.getBoundingClientRect();
+      const dx = ((e.clientX - rect.left) / rect.width - 0.5) * 8;
+      const dy = ((e.clientY - rect.top) / rect.height - 0.5) * 6;
+      cta.style.transform = `translate(${Math.max(-4, Math.min(4, dx)).toFixed(1)}px, ${Math.max(-3, Math.min(3, dy)).toFixed(1)}px)`;
+    });
+    cta.addEventListener("pointerleave", () => { cta.style.transform = ""; });
+  }
+})();
+
+// ---- 外部服务（训练页横幅 + 设置中心「外部服务」页签） ----
+const mapsBanner = document.getElementById("maps-banner");
+const mapsConnectBtn = document.getElementById("maps-connect-btn");
+const mapsBannerClose = document.getElementById("maps-banner-close");
+const settingsTabs = document.querySelectorAll(".settings-tab");
+const settingsPanels = document.querySelectorAll("[data-settings-panel]");
+
+function switchSettingsTab(tab) {
+  settingsTabs.forEach((b) => {
+    const active = b.dataset.settingsTab === tab;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  settingsPanels.forEach((panel) => {
+    panel.classList.toggle("hidden", panel.dataset.settingsPanel !== tab);
+  });
+}
+settingsTabs.forEach((b) => b.addEventListener("click", () => switchSettingsTab(b.dataset.settingsTab)));
+
+function renderExternalServices() {
+  const ext = currentSettings && currentSettings.externalServices;
+  if (!ext) return;
+  const defaultProvider = ext.defaultMapProvider;
+  document.querySelectorAll(".service-card[data-service]").forEach((card) => {
+    const meta = ext.maps.find((m) => m.id === card.dataset.service);
+    if (!meta) return;
+    const state = card.querySelector(".service-state");
+    if (state) {
+      state.textContent = meta.hasKey ? "已连接" : "未连接";
+      state.classList.toggle("connected", meta.hasKey);
+    }
+    const defaultBtn = card.querySelector(".service-default-btn");
+    if (defaultBtn) {
+      defaultBtn.classList.toggle("hidden", !meta.hasKey || defaultProvider === meta.id);
+      defaultBtn.textContent = defaultProvider === meta.id ? "默认 ✓" : "设为默认";
+    }
+  });
+}
+
+document.querySelectorAll(".service-card[data-service]").forEach((card) => {
+  const serviceId = card.dataset.service;
+  const keyInput = card.querySelector(".service-key");
+  const saveBtn = card.querySelector(".service-save-btn");
+  const status = card.querySelector(".service-status");
+  const setStatus = (message, ok) => {
+    if (status) { status.textContent = message; status.className = "settings-status service-status " + (ok ? "ok" : "err"); }
+  };
+  if (saveBtn) saveBtn.addEventListener("click", async () => {
+    const key = (keyInput.value || "").trim();
+    if (!key) { keyInput.focus(); return setStatus("请输入密钥；留空不会修改已保存的值"); }
+    saveBtn.disabled = true;
+    setStatus("保存中…", true);
+    try {
+      const res = await fetch("/api/v1/settings/external-services", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ service: serviceId, apiKey: key }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setStatus("已保存并连接", true);
+        keyInput.value = "";
+        await loadSettings();
+        refreshMapsBanner();
+      } else {
+        setStatus(data.error ? data.error.message : "保存失败");
+      }
+    } catch (e) {
+      setStatus("保存失败：" + e.message);
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+  const defaultBtn = card.querySelector(".service-default-btn");
+  if (defaultBtn) defaultBtn.addEventListener("click", async () => {
+    try {
+      await apiRequest("/api/v1/settings/map-provider", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: serviceId }),
+      });
+      await loadSettings();
+      setStatus("已设为默认地图服务", true);
+    } catch (e) {
+      setStatus("设置失败：" + e.message);
+    }
+  });
+});
+
+function refreshMapsBanner() {
+  if (!mapsBanner) return;
+  const ext = currentSettings && currentSettings.externalServices;
+  const connected = !!(ext && ext.maps.some((m) => m.hasKey));
+  const dismissed = sessionStorage.getItem("mapsBannerDismissed") === "1";
+  mapsBanner.classList.toggle("hidden", connected || dismissed);
+  if (connected) {
+    const defaultMeta = (ext.maps.find((m) => m.id === ext.defaultMapProvider) || ext.maps.find((m) => m.hasKey) || {});
+    mapsBanner.querySelector(".guidance-text span").textContent =
+      `已连接${defaultMeta.name || "地图服务"}：对话里说「帮我规划周末 10 公里骑行」即可获得带距离与耗时的路线建议。`;
+  }
+}
+
+if (mapsConnectBtn) mapsConnectBtn.addEventListener("click", () => {
+  loadSettings();
+  switchSettingsTab("services");
+  openModal(settingsModal, document.querySelector('.service-card[data-service="baidu_map"] .service-key'));
+});
+if (mapsBannerClose) mapsBannerClose.addEventListener("click", () => {
+  mapsBanner.classList.add("hidden");
+  sessionStorage.setItem("mapsBannerDismissed", "1");
 });
 
 // ---- 全局事件流：定时任务触发推送 ----

@@ -2,7 +2,7 @@ import type { Agent } from "@earendil-works/pi-agent-core";
 import type { Model, TextContent } from "@earendil-works/pi-ai";
 import { config, unsafeCustomEndpointsEnabled, type ModelName } from "../config";
 import type { RecipeDB } from "../db/database";
-import { ALL_MODELS, THINKING_LEVELS, type SettingsStore } from "../settings";
+import { ALL_MODELS, THINKING_LEVELS, EXTERNAL_SERVICE_IDS, type SettingsStore } from "../settings";
 import { buildTemporaryCustomModels, getModelByName, listModelCatalog, registerCustomProvider, type ModelsCollection } from "../models";
 import { handleV1, MAX_JSON_BYTES, validateCustomBaseUrl } from "./api";
 import { ConversationAgentManager, type ConversationAgentFactory } from "./conversations";
@@ -12,6 +12,7 @@ export { safeProviderMessage } from "./errors";
 import { listSkillMeta } from "../skills";
 import { buildRecommendationProfile, buildRecommendationUserPrompt, parseRecommendations, RECOMMENDATION_SYSTEM_PROMPT } from "./recommendations";
 import { buildAnalysisProfile, buildAnalysisUserPrompt, parseAnalysis, ANALYSIS_SYSTEM_PROMPT, type AnalysisPeriod } from "./analysis";
+import { buildTutorialProfile, buildTutorialUserPrompt, parseTutorial, TUTORIAL_SYSTEM_PROMPT } from "./tutorial";
 
 const STATIC_DIR = import.meta.dir + "/static";
 
@@ -126,6 +127,42 @@ export function startServer(
         const ids = Array.isArray(body.enabled) ? body.enabled.filter((x): x is string => typeof x === "string") : [];
         settings.setEnabledSkills(ids);
         return Response.json({ ok: true, data: { enabled: settings.getEnabledSkills() }, requestId });
+      }
+
+      // 外部服务：保存/清除密钥（空字符串清除；key 存系统凭据，不回显）
+      if (req.method === "PUT" && url.pathname === "/api/v1/settings/external-services") {
+        const requestId = crypto.randomUUID();
+        try {
+          let body: { service?: string; apiKey?: string };
+          try { body = await parseJson<typeof body>(req); }
+          catch { return Response.json({ ok: false, error: { code: "PAYLOAD_INVALID", message: "请求体无效", requestId } }, { status: 400 }); }
+          const service = body.service ?? "";
+          if (!EXTERNAL_SERVICE_IDS.includes(service)) {
+            return Response.json({ ok: false, error: { code: "VALIDATION_ERROR", message: "未知的外部服务", requestId } }, { status: 422 });
+          }
+          const key = (body.apiKey ?? "").trim();
+          if (key && !/^[A-Za-z0-9_-]{16,80}$/.test(key)) {
+            return Response.json({ ok: false, error: { code: "VALIDATION_ERROR", message: "密钥格式不对：应为 16-80 位字母数字/下划线/连字符，请核对申请页面", requestId } }, { status: 422 });
+          }
+          settings.setExternalServiceKey(service, key);
+          return Response.json({ ok: true, data: { service, hasKey: !!settings.getExternalServiceKey(service) }, requestId });
+        } catch (e) {
+          return Response.json({ ok: false, error: { code: "EXTERNAL_SERVICE_ERROR", message: safeProviderMessage(e, settings.getSecretValues()), requestId } }, { status: 500 });
+        }
+      }
+
+      // 外部服务：设置默认地图服务（仅允许已连接的）
+      if (req.method === "PUT" && url.pathname === "/api/v1/settings/map-provider") {
+        const requestId = crypto.randomUUID();
+        try {
+          let body: { provider?: string };
+          try { body = await parseJson<typeof body>(req); }
+          catch { return Response.json({ ok: false, error: { code: "PAYLOAD_INVALID", message: "请求体无效", requestId } }, { status: 400 }); }
+          settings.setMapProvider((body.provider ?? "").trim());
+          return Response.json({ ok: true, data: { defaultMapProvider: settings.getMapProvider() || null }, requestId });
+        } catch (e) {
+          return Response.json({ ok: false, error: { code: "VALIDATION_ERROR", message: e instanceof Error ? e.message : "设置失败", requestId } }, { status: 422 });
+        }
       }
 
       // 模型目录：各 provider 可选的模型列表（供设置中心做模型选择）
@@ -339,6 +376,47 @@ export function startServer(
           return Response.json({ ok: true, data: { text: raw || "暂时无法生成保鲜分析。" }, requestId });
         } catch (e) {
           return Response.json({ ok: false, error: { code: "FRIDGE_AI_ERROR", message: safeProviderMessage(e, settings.getSecretValues()), requestId } }, { status: 500 });
+        }
+      }
+
+      // 教学菜谱生成：读取冰箱食材 + 口味偏好，生成结构化教程并落库（菜谱教授页展示）
+      if (req.method === "POST" && url.pathname === "/api/v1/tutorials/generate") {
+        const requestId = crypto.randomUUID();
+        try {
+          let body: { privacyConsent?: boolean; dish?: string; servings?: number } = {};
+          try { body = await parseJson<typeof body>(req); } catch { /* 按未授权处理，避免读取健康数据 */ }
+          if (body.privacyConsent !== true) {
+            return Response.json({ ok: false, error: { code: "PRIVACY_CONSENT_REQUIRED", message: "发送冰箱食材与偏好前需要明确确认本次数据流向", requestId } }, { status: 428 });
+          }
+          const dish = (body.dish ?? "").trim();
+          if (!dish || dish.length > 60) {
+            return Response.json({ ok: false, error: { code: "VALIDATION_ERROR", message: "请填写要学的菜名（不超过 60 字）", requestId } }, { status: 422 });
+          }
+          const servings = typeof body.servings === "number" && Number.isInteger(body.servings) && body.servings >= 1 && body.servings <= 20 ? body.servings : undefined;
+          const providerName = settings.getModelName();
+          if (!settings.getKey(providerName)) {
+            return Response.json({ ok: false, error: { code: "MODEL_NOT_CONFIGURED", message: `模型 "${providerName}" 缺少 API Key，请先在设置中心配置`, requestId } }, { status: 422 });
+          }
+          const model = getModelByName(models, settings, providerName);
+          const profile = buildTutorialProfile(db);
+          const response = await models.complete(model, {
+            systemPrompt: TUTORIAL_SYSTEM_PROMPT,
+            messages: [{ role: "user", content: buildTutorialUserPrompt(profile, dish, servings), timestamp: Date.now() }],
+          });
+          const raw = response.content.filter((b): b is TextContent => b.type === "text").map((b) => b.text).join("\n");
+          const tutorial = parseTutorial(raw);
+          if (!tutorial) {
+            return Response.json({ ok: false, error: { code: "TUTORIAL_PARSE_ERROR", message: "AI 返回的教程结构不完整，请重试一次", requestId } }, { status: 502 });
+          }
+          const id = db.createRecipe({
+            title: tutorial.title,
+            ingredients: tutorial.ingredients,
+            steps: { servings: tutorial.servings, total_minutes: tutorial.total_minutes, prep: tutorial.prep, cook: tutorial.cook, tips: tutorial.tips },
+            source: "tutorial",
+          });
+          return Response.json({ ok: true, data: { id, ...tutorial }, requestId });
+        } catch (e) {
+          return Response.json({ ok: false, error: { code: "TUTORIAL_ERROR", message: safeProviderMessage(e, settings.getSecretValues()), requestId } }, { status: 500 });
         }
       }
 

@@ -40,6 +40,8 @@ export function createAgent(
     enabledSkillIds?: string[];
     /** 会话亲和 id：转发给支持缓存的 provider，提升多轮对话的缓存命中。 */
     sessionId?: string;
+    /** 运行时设置；提供后注册百度地图等外部服务工具。 */
+    settings?: import("./settings").SettingsStore;
   } = {},
 ): Agent {
   const enabledIds = options.enabledSkillIds ?? DEFAULT_ENABLED_SKILL_IDS;

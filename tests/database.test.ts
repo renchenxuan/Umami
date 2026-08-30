@@ -32,7 +32,7 @@ describe("RecipeDB migrations",()=>{
     `);legacy.close();
     const db=new RecipeDB(path);
     expect(db.backupPath).not.toBeNull();expect(existsSync(db.backupPath!)).toBe(true);
-    expect(db.getMigrationVersion()).toBe(10);expect(db.getIngredient(7)?.name).toBe("菠菜");
+    expect(db.getMigrationVersion()).toBe(11);expect(db.getIngredient(7)?.name).toBe("菠菜");
     expect(db.getRecipes().find(r=>r.legacy_history_id===9)?.title).toBe("旧计划");
     expect(db.getSetting("openai_api_key")).toBe("must-disappear");
     const snapshot=new Database(db.backupPath!,{readonly:true});expect((snapshot.query("SELECT name FROM ingredients WHERE id=7").get() as {name:string}).name).toBe("菠菜");expect((snapshot.query("SELECT value FROM settings WHERE key='openai_api_key'").get() as {value:string}).value).toBe("must-disappear");snapshot.close();

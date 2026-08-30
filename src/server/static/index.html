@@ -56,12 +56,16 @@
             </button>
             <button id="tab-chat" class="nav-btn active" data-view="chat" role="tab" aria-selected="true" aria-controls="messages" tabindex="0">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              <span>AI 副驾</span>
+              <span>问团团</span>
             </button>
             <span class="nav-divider" role="separator" aria-hidden="true"></span>
             <button id="tab-diet" class="nav-btn" data-view="diet" role="tab" aria-selected="false" aria-controls="diet" tabindex="-1">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3v7"/></svg>
               <span>饮食</span>
+            </button>
+            <button id="tab-tutorials" class="nav-btn" data-view="tutorials" role="tab" aria-selected="false" aria-controls="tutorials" tabindex="-1" aria-label="开小灶（手把手教做菜）">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18h12v3H6z"/><path d="M6 18a7 7 0 1 1 12-5.3A4.5 4.5 0 0 0 17 4a4.5 4.5 0 0 0-4.5 4A4.5 4.5 0 0 0 8 4a4.5 4.5 0 0 0-1 8.7A7 7 0 0 1 6 18Z"/></svg>
+              <span>开小灶</span>
             </button>
             <button id="tab-fitness" class="nav-btn" data-view="fitness" role="tab" aria-selected="false" aria-controls="fitness" tabindex="-1">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 9h11v6h-11z"/></svg>
@@ -165,6 +169,15 @@
         <div class="page">
           <h2>训练</h2>
           <p class="page-desc">记录训练计划与每日时长；到「今日总览」点「健康分析」，AI 会结合这些记录给出分析。</p>
+          <div id="maps-banner" class="guidance-banner hidden" role="status">
+            <span class="guidance-icon" aria-hidden="true">🗺️</span>
+            <div class="guidance-text">
+              <strong>连接地图服务，让户外训练更落地</strong>
+              <span>连接百度/高德/谷歌任一地图后，AI 可查询附近公园/操场、测算步行与骑行路线的距离耗时。生成路线建议时会把起点/终点地名与搜索词发送给对应地图服务商。</span>
+            </div>
+            <button id="maps-connect-btn" class="guidance-btn" type="button">去连接</button>
+            <button id="maps-banner-close" class="guidance-close" type="button" aria-label="关闭连接提示">✕</button>
+          </div>
           <div id="workout-presets" class="workout-presets" role="group" aria-label="常用健身类型"></div>
           <form class="form-row" id="workout-form">
             <input id="w-type" class="field" placeholder="类型，如 慢跑（也可点上方图标快速选择）" />
@@ -209,6 +222,36 @@
             </div>
           </div>
           <div id="diet-list" class="list"></div>
+        </div>
+      </section>
+
+      <section id="tutorials" class="view hidden" role="tabpanel" aria-labelledby="tab-tutorials">
+        <div class="page">
+          <div class="page-head-row">
+            <div>
+              <h2>开小灶</h2>
+              <p class="page-desc">手把手教你做菜：内置家常菜教程，也可以让 AI 生成、或自己写一份。份量为按人数的换算假设、热量为估算值，教程为烹饪参考。</p>
+            </div>
+            <button id="tutorial-new-btn" class="secondary-btn tutorial-new-btn" type="button">✍️ 自己写一个</button>
+          </div>
+          <form id="tutorial-form" class="form-row tutorial-form">
+            <input id="t-dish" class="field" placeholder="让 AI 教你做一道菜，如 可乐鸡翅" maxlength="60" />
+            <input id="t-servings" class="field" type="number" min="1" max="20" placeholder="几人份（可选）" />
+            <button id="t-generate" class="primary-btn" type="submit" disabled>生成教学</button>
+          </form>
+          <label class="tutorial-consent"><input id="t-consent" type="checkbox" /> 我已了解：生成时会读取冰箱食材与口味偏好发送给当前模型提供商，只发送完成本次教学所需的数据。</label>
+          <div id="tutorials-status" class="settings-status" role="status" aria-live="polite"></div>
+          <div id="tutorial-result" class="tutorial-result hidden"></div>
+          <div class="tutorial-list-head">
+            <h3 class="tutorial-subhead">菜谱大全</h3>
+            <div id="tutorial-filters" class="tutorial-filters" role="group" aria-label="按餐次筛选">
+              <button type="button" class="tutorial-filter active" data-meal="">全部</button>
+              <button type="button" class="tutorial-filter" data-meal="早餐">早餐</button>
+              <button type="button" class="tutorial-filter" data-meal="午餐">午餐</button>
+              <button type="button" class="tutorial-filter" data-meal="晚餐">晚餐</button>
+            </div>
+          </div>
+          <div id="tutorials-list" class="list"></div>
         </div>
       </section>
 
@@ -278,8 +321,9 @@
           <button type="button" class="quick-chip" data-prompt="看看冰箱里能做什么菜">🧊 冰箱做菜</button>
           <button type="button" class="quick-chip" data-prompt="推荐一下今天的运动">💪 今日运动</button>
           <button type="button" class="quick-chip" data-prompt="帮我记录体重">⚖️ 记体重</button>
-          <button type="button" class="quick-chip" data-prompt="每天晚上六点提醒我吃晚饭">⏰ 建提醒</button>
-        </div>
+        <button type="button" class="quick-chip" data-prompt="每天晚上六点提醒我吃晚饭">⏰ 建提醒</button>
+        <button type="button" class="quick-chip" data-prompt="教我做一道家常快手菜">🍳 开小灶</button>
+      </div>
         <div id="preview" class="preview hidden">
           <img id="preview-img" alt="图片预览" />
           <button id="clear-img" class="clear-img" title="移除图片" aria-label="移除已选择的图片">✕</button>
@@ -306,6 +350,11 @@
         <h2 id="settings-title">设置中心</h2>
         <button id="settings-close" class="close-btn" aria-label="关闭设置中心">✕</button>
       </div>
+      <div class="settings-tabs" role="tablist" aria-label="设置分区">
+        <button type="button" class="settings-tab active" data-settings-tab="model" role="tab" aria-selected="true">模型</button>
+        <button type="button" class="settings-tab" data-settings-tab="services" role="tab" aria-selected="false">外部服务</button>
+      </div>
+      <div data-settings-panel="model" role="tabpanel" aria-label="模型设置">
       <label class="field-label">界面主题</label>
       <select id="theme-select" class="field">
         <option value="dark">深色</option>
@@ -359,6 +408,71 @@
         <span class="settings-export-label">全部健康数据（食材 / 训练 / 目标 / 会话等）导出为 JSON</span>
         <button id="export-btn" class="secondary-btn" type="button">导出我的数据</button>
       </div>
+      </div>
+      <div data-settings-panel="services" class="hidden" role="tabpanel" aria-label="外部服务设置">
+        <p class="services-desc">连接外部服务后，问团团的能力随连接自动扩展；密钥只存本机系统凭据，不上传、不写入数据库。</p>
+        <h3 class="services-subhead">地图服务</h3>
+        <p class="services-note">连接任一地图后，AI 就能搜附近公园/操场、测算步行与骑行路线。连接多张卡时，用「设为默认」选择路线数据来源。</p>
+        <div class="map-cards">
+        <div class="service-card spotlight" data-service="baidu_map" data-name="百度地图">
+          <div class="service-head">
+            <span class="service-name">百度地图</span>
+            <span class="service-state">未连接</span>
+            <button type="button" class="board-card-action service-default-btn hidden">设为默认</button>
+          </div>
+          <p class="service-desc">免费申请服务端 AK；地点搜索与步行/骑行路线测算。</p>
+          <div class="service-row">
+            <input type="password" class="field service-key" placeholder="留空则不修改" autocomplete="off" aria-label="百度地图 AK" />
+            <button type="button" class="secondary-btn service-save-btn">保存</button>
+          </div>
+          <div class="service-foot">
+            <a class="service-link" href="https://lbsyun.baidu.com/apiconsole/key" target="_blank" rel="noopener noreferrer">申请入口 ↗</a>
+            <span class="settings-status service-status" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+        <div class="service-card spotlight" data-service="amap_map" data-name="高德地图">
+          <div class="service-head">
+            <span class="service-name">高德地图</span>
+            <span class="service-state">未连接</span>
+            <button type="button" class="board-card-action service-default-btn hidden">设为默认</button>
+          </div>
+          <p class="service-desc">Web 服务 Key 免费申请；地点搜索与步行/骑行路线测算。</p>
+          <div class="service-row">
+            <input type="password" class="field service-key" placeholder="留空则不修改" autocomplete="off" aria-label="高德地图 Key" />
+            <button type="button" class="secondary-btn service-save-btn">保存</button>
+          </div>
+          <div class="service-foot">
+            <a class="service-link" href="https://lbs.amap.com/api/webservice/guide/create-project/get-key" target="_blank" rel="noopener noreferrer">申请入口 ↗</a>
+            <span class="settings-status service-status" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+        <div class="service-card spotlight" data-service="google_maps" data-name="谷歌地图">
+          <div class="service-head">
+            <span class="service-name">谷歌地图</span>
+            <span class="service-state">未连接</span>
+            <button type="button" class="board-card-action service-default-btn hidden">设为默认</button>
+          </div>
+          <p class="service-desc">需要绑卡的 Google Cloud 项目并启用 Maps API；适合海外地址。</p>
+          <div class="service-row">
+            <input type="password" class="field service-key" placeholder="留空则不修改" autocomplete="off" aria-label="谷歌地图 API Key" />
+            <button type="button" class="secondary-btn service-save-btn">保存</button>
+          </div>
+          <div class="service-foot">
+            <a class="service-link" href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer">申请入口 ↗</a>
+            <span class="settings-status service-status" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+        </div>
+        <h3 class="services-subhead">工具服务</h3>
+        <div class="service-card is-planned">
+          <div class="service-head">
+            <span class="service-name">📄 飞书表格</span>
+            <span class="service-state planned">即将支持</span>
+          </div>
+          <p class="service-desc">连接后可读写你的在线表格，比如「把今天吃的记进飞书表格」。</p>
+        </div>
+        <p class="fridge-ai-disclosure">连接地图后，生成户外路线建议时会把起点/终点地名与搜索关键词发送给对应地图服务商；不连接则 AI 不编造路线数据。</p>
+      </div>
     </div>
   </div>
 
@@ -378,6 +492,37 @@
         <button id="add-card-submit" class="primary-btn">添加</button>
       </div>
       <div id="add-card-status" class="settings-status"></div>
+    </div>
+  </div>
+
+  <div id="tutorial-editor-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="tutorial-editor-title">
+    <div class="modal-content tutorial-editor" tabindex="-1">
+      <div class="modal-header">
+        <h2 id="tutorial-editor-title">编辑教程</h2>
+        <button id="tutorial-editor-close" class="close-btn" aria-label="关闭教程编辑器">✕</button>
+      </div>
+      <form id="tutorial-editor-form">
+        <label class="field-label">菜名</label>
+        <input id="editor-title" class="field" maxlength="200" required />
+        <div class="form-row editor-meta">
+          <label class="field-label">份数（人）<input id="editor-servings" class="field" type="number" min="1" max="20" /></label>
+          <label class="field-label">总耗时（分钟）<input id="editor-minutes" class="field" type="number" min="1" max="600" /></label>
+          <label class="field-label">餐次<select id="editor-meal" class="field"><option value="">未分类</option><option>早餐</option><option>午餐</option><option>晚餐</option></select></label>
+        </div>
+        <label class="field-label">食材（名称 / 用量 / 备注）</label>
+        <div id="editor-ingredients" class="editor-ingredients"></div>
+        <button id="editor-add-ingredient" class="secondary-btn editor-add" type="button">＋ 加一种食材</button>
+        <label class="field-label">切配步骤（每行一步）</label>
+        <textarea id="editor-prep" class="field" rows="4" placeholder="如：番茄顶部划十字，开水烫 30 秒后去皮切块"></textarea>
+        <label class="field-label">烹饪步骤（每行一步）</label>
+        <textarea id="editor-cook" class="field" rows="6" placeholder="如：热锅倒油，油温六成热下蛋液，刚凝固就盛出"></textarea>
+        <label class="field-label">小贴士与常见失败点</label>
+        <textarea id="editor-tips" class="field" rows="3"></textarea>
+        <div class="settings-actions">
+          <button id="editor-save" class="primary-btn" type="submit">保存教程</button>
+          <span id="editor-status" class="settings-status" role="status" aria-live="polite"></span>
+        </div>
+      </form>
     </div>
   </div>
 

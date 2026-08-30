@@ -1,6 +1,7 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { Models, Model } from "@earendil-works/pi-ai";
 import type { RecipeDB } from "../db/database";
+import type { SettingsStore } from "../settings";
 import { createIngredientTools } from "./ingredients";
 import { createFavoriteTools } from "./favorites";
 import { createHistoryTools } from "./history";
@@ -13,13 +14,15 @@ import { createHabitTools } from "./habits";
 import { createDietTools } from "./diet";
 import { createFoodTools } from "./foods";
 import { createScheduleTools } from "./schedules";
+import { createTutorialTools } from "./tutorials";
+import { createMapTools } from "./map-tools";
 
 /** 汇总构建全部工具。getModel 用于子调用工具读取当前模型（支持运行时切换）。 */
 export function createAllTools(
   db: RecipeDB,
   models: Models,
   getModel: () => Model<any>,
-  options: { conversationId?: number; onProposal?: (proposal: import("../db/database").AgentActionProposal) => void } = {},
+  options: { conversationId?: number; settings?: SettingsStore; onProposal?: (proposal: import("../db/database").AgentActionProposal) => void } = {},
 ): AgentTool<any>[] {
   const tools = [
     ...createIngredientTools(db),
@@ -33,6 +36,8 @@ export function createAllTools(
     ...createDietTools(db),
     ...createFoodTools(db),
     ...createScheduleTools(db, options.conversationId),
+    ...createTutorialTools(db),
+    ...(options.settings ? createMapTools(options.settings) : []),
     createNutritionTool(models, getModel),
   ];
   if (options.conversationId === undefined) return tools;
@@ -44,6 +49,7 @@ export const AUTO_WRITE_TOOLS = new Set([
   "save_ingredients",
   "save_favorite",
   "save_recipe_history",
+  "save_tutorial",
   "log_workout",
   "log_body_metric",
   "set_goal",

@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { basename, dirname, join, resolve } from "node:path";
 import { FOODS, FOOD_CATEGORIES, unitFor, estimateItemNutrition, FOOD_NUTRITION } from "./foods-data";
+import { TUTORIAL_PRESETS } from "./tutorial-presets";
 
 export interface Ingredient { id:number; name:string; quantity:string; category:string; source:string; zone:string; note:string|null; added_at:string; created_at:string; updated_at:string; archived_at:string|null }
 export interface FridgeSettings { freezerTemp:number; fridgeTemp:number }
@@ -24,9 +25,9 @@ export type ScheduleType="daily"|"weekly"|"once";
 export interface Schedule { id:number; conversation_id:number; title:string; message:string; schedule_type:ScheduleType; time_of_day:string; weekdays:number[]|null; fire_date:string|null; enabled:number; last_fired_at:string|null; next_fire_at:string|null; created_at:string; updated_at:string }
 
 type PatchValue = string|number|null|undefined;
-export const SECRET_SETTING_KEYS = ["openai_api_key","google_api_key","deepseek_api_key","moonshot_api_key","minimax_api_key","anthropic_api_key","dashscope_api_key","zhipu_api_key","custom_api_key"];
+export const SECRET_SETTING_KEYS = ["openai_api_key","google_api_key","deepseek_api_key","moonshot_api_key","minimax_api_key","anthropic_api_key","dashscope_api_key","zhipu_api_key","custom_api_key","baidu_map_ak","amap_map_ak","google_maps_api_key"];
 const parseJson = (value:unknown):unknown => { if(typeof value!=="string"||!value) return value??null; try{return JSON.parse(value)}catch{return value} };
-const LATEST_SCHEMA_VERSION=10;
+const LATEST_SCHEMA_VERSION=11;
 const validDate=(value:string)=>{const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(value);const parsed=match?new Date(Date.UTC(Number(match[1]),Number(match[2])-1,Number(match[3]))):null;return!!match&&!!parsed&&parsed.toISOString().slice(0,10)===value};
 const requireText=(field:string,value:unknown,max:number)=>{if(typeof value!=="string"||!value.trim()||value.length>max)throw new RangeError(`${field} 必须是 1 到 ${max} 个字符`)};
 const requireDate=(field:string,value:unknown)=>{if(typeof value!=="string"||!validDate(value))throw new RangeError(`${field} 必须是有效的 YYYY-MM-DD 日期`)};
@@ -233,6 +234,19 @@ export class RecipeDB {
         if(p)upd.run(p.kcal,p.protein,p.fat,p.carb,f.name);
       }
     });
+    // 开小灶：一次性播种内置家常菜预设教程（source='preset'）。
+    // 借助 schema_migrations 只跑一次：用户删除预设后不会在下次启动时复活。
+    run(11,"tutorial_presets",()=>{
+      const insert=this.db.query("INSERT INTO recipes(title,ingredients,steps,source) VALUES(?,?,?,'preset')");
+      const exists=this.db.query("SELECT 1 FROM recipes WHERE title=? AND source='preset' LIMIT 1");
+      for(const dish of TUTORIAL_PRESETS){
+        if(exists.get(dish.title))continue;
+        insert.run(dish.title,JSON.stringify(dish.ingredients),JSON.stringify({
+          servings:dish.servings,total_minutes:dish.total_minutes,meal:dish.meal,
+          prep:dish.prep,cook:dish.cook,tips:dish.tips,
+        }));
+      }
+    });
   }
   getMigrationVersion(){return Number((this.db.query("SELECT COALESCE(MAX(version),0) version FROM schema_migrations").get() as {version:number}).version)}
   getTableNames(){return (this.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all() as Array<{name:string}>).map(r=>r.name)}
@@ -354,6 +368,8 @@ export class RecipeDB {
   createRecipe(d:{title:string;ingredients?:unknown;steps?:unknown;nutrition_estimate?:unknown;source?:string}){return Number(this.db.query("INSERT INTO recipes(title,ingredients,steps,nutrition_estimate,source) VALUES(?,?,?,?,?)").run(d.title,JSON.stringify(d.ingredients??[]),JSON.stringify(d.steps??[]),d.nutrition_estimate==null?null:JSON.stringify(d.nutrition_estimate),d.source??"manual").lastInsertRowid)}
   private recipe(r:Record<string,unknown>){return {...r,ingredients:parseJson(r.ingredients),steps:parseJson(r.steps),nutrition_estimate:parseJson(r.nutrition_estimate)} as unknown as Recipe}
   getRecipes(){return (this.db.query("SELECT * FROM recipes WHERE archived_at IS NULL ORDER BY id DESC").all() as Array<Record<string,unknown>>).map(r=>this.recipe(r))}
+  /** 开小灶教程：recipes 表中 source='tutorial'（AI/自建）与 source='preset'（内置预设）的记录。 */
+  getTutorials(){return (this.db.query("SELECT * FROM recipes WHERE source IN ('tutorial','preset') AND archived_at IS NULL ORDER BY id DESC").all() as Array<Record<string,unknown>>).map(r=>this.recipe(r))}
   getRecipe(id:number){const r=this.one("recipes",id);return r?this.recipe(r):null}
   updateRecipe(id:number,p:Partial<Recipe>){const d={...p,ingredients:p.ingredients===undefined?undefined:JSON.stringify(p.ingredients),steps:p.steps===undefined?undefined:JSON.stringify(p.steps),nutrition_estimate:p.nutrition_estimate===undefined?undefined:JSON.stringify(p.nutrition_estimate)};return this.patch("recipes",id,d as Record<string,PatchValue>,["title","ingredients","steps","nutrition_estimate","source"])}
   archiveRecipe(id:number){return this.archive("recipes",id)}

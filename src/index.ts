@@ -40,7 +40,7 @@ if (!settings.getKey(settings.getModelName())) {
 
 let agent: Agent;
 const getModel = () => agent.state.model;
-agent = createAgent(db, models, getModel, initialModel);
+agent = createAgent(db, models, getModel, initialModel, { settings });
 
 startServer(agent, db, settings, models, {
   conversationAgentFactory: ({ conversationId, model, getApiKey, onProposal }) => {
@@ -52,6 +52,7 @@ startServer(agent, db, settings, models, {
       onProposal,
       enabledSkillIds,
       sessionId: String(conversationId),
+      settings,
     });
     return conversationAgent;
   },

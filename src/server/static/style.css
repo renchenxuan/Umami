@@ -3699,7 +3699,7 @@ button {
 }
 
 .msg.scheduled .bubble::before {
-  content: "⏰ 定时任务";
+  content: "定时任务";
   display: block;
   font-size: 11px;
   font-weight: 700;
@@ -4533,3 +4533,32 @@ html[data-ambient="reduced"] .bg-dust { display: none !important; }
   font-size: 13px;
   border-radius: 999px;
 }
+
+/* ===================== v3.3：单色线条 UI 图标（Tabler，MIT） ===================== */
+.ui-icon {
+  width: 1em;
+  height: 1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -0.14em;
+  flex: none;
+}
+.quick-chip { display: inline-flex; align-items: center; gap: 6px; }
+.quick-chip .ui-icon { font-size: 14px; color: var(--muted); transition: color var(--dur) var(--ease); }
+.quick-chip:hover .ui-icon { color: var(--emerald); }
+.zone-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.zone-btn .ui-icon { color: var(--section-accent); }
+.tutorial-section h4 { display: flex; align-items: center; gap: 7px; }
+.tutorial-section h4 .ui-icon { color: var(--emerald); flex: none; }
+[data-theme="dark"] .tutorial-section h4 .ui-icon { color: var(--emerald-bright); }
+.fridge-alert .ui-icon { color: var(--danger); margin-right: 4px; }
+.meta-note { display: inline-flex; margin-left: 6px; color: var(--muted); }
+.meta-note .ui-icon { font-size: 12px; vertical-align: -0.12em; }
+.service-name .ui-icon { margin-right: 4px; color: var(--muted); }
+.guidance-icon .ui-icon { font-size: 20px; color: var(--emerald); }
+.tutorial-new-btn .ui-icon { margin-right: 4px; }
+.tutorial-tips h4 { display: flex; align-items: center; gap: 7px; }
+.tutorial-tips h4 .ui-icon { flex: none; }

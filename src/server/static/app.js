@@ -585,6 +585,11 @@ if (composerEl) {
   });
 }
 
+// 单色线条 UI 图标（Tabler Icons，MIT）：sprite 在 index.html 顶部，尺寸随字号、颜色随主题
+function uiIcon(name) {
+  return '<svg class="ui-icon" aria-hidden="true"><use href="#i-' + name + '"/></svg>';
+}
+
 function escapeHtml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -2121,9 +2126,9 @@ function updateFridgeAlert(items) {
   const alert = document.getElementById("fridge-alert");
   if (alert) {
     if (expired || near) {
-      alert.textContent = expired
-        ? `⚠️ 有 ${expired} 样食材已过期${near ? `、${near} 样临近保鲜期` : ""}，建议尽快处理。`
-        : `⏳ 有 ${near} 样食材临近保鲜期，优先食用。`;
+      alert.innerHTML = expired
+        ? `${uiIcon("alert-triangle")} 有 ${expired} 样食材已过期${near ? `、${near} 样临近保鲜期` : ""}，建议尽快处理。`
+        : `${uiIcon("hourglass")} 有 ${near} 样食材临近保鲜期，优先食用。`;
       alert.classList.remove("hidden");
     } else {
       alert.classList.add("hidden");
@@ -2218,7 +2223,8 @@ function renderFridgeItem(it, container) {
   name.textContent = it.name + (it.quantity ? " " + it.quantity : "");
   const meta = document.createElement("span");
   meta.className = "fridge-item-meta";
-  meta.textContent = `已存放 ${daysIn} 天 · 建议 ${life} 天内` + ((it.note || "").trim() ? " · 📝" : "");
+  meta.textContent = `已存放 ${daysIn} 天 · 建议 ${life} 天内`;
+  if ((it.note || "").trim()) { const n = document.createElement("span"); n.className = "meta-note"; n.title = "有备注"; n.innerHTML = uiIcon("note"); meta.appendChild(n); }
   main.appendChild(name);
   main.appendChild(meta);
   item.appendChild(main);
@@ -2317,7 +2323,8 @@ function renderZoneModal() {
     name.textContent = it.name + (it.quantity ? " " + it.quantity : "");
     const meta = document.createElement("span");
     meta.className = "fridge-item-meta";
-    meta.textContent = `已存放 ${daysIn} 天 · 建议 ${life} 天内` + ((it.note || "").trim() ? " · 📝" : "");
+    meta.textContent = `已存放 ${daysIn} 天 · 建议 ${life} 天内`;
+    if ((it.note || "").trim()) { const n = document.createElement("span"); n.className = "meta-note"; n.title = "有备注"; n.innerHTML = uiIcon("note"); meta.appendChild(n); }
     main.appendChild(name);
     main.appendChild(meta);
     row.appendChild(main);
@@ -4087,7 +4094,7 @@ function renderTutorialDetail(t) {
 
   const ingSec = document.createElement("div");
   ingSec.className = "tutorial-section";
-  ingSec.innerHTML = '<h4>🧺 食材准备</h4>';
+  ingSec.innerHTML = '<h4>' + uiIcon("basket") + '食材准备</h4>';
   const ingTable = document.createElement("table");
   ingTable.className = "tutorial-ingredients";
   ingTable.innerHTML = '<thead><tr><th scope="col">食材</th><th scope="col">用量</th><th scope="col">备注</th></tr></thead>';
@@ -4116,13 +4123,13 @@ function renderTutorialDetail(t) {
     sec.appendChild(ol);
     tutorialResult.appendChild(sec);
   };
-  phase("🔪 切配", prep);
-  phase("🔥 烹饪", cook, "tutorial-cook");
+  phase(uiIcon("cut") + "切配", prep);
+  phase(uiIcon("flame") + "烹饪", cook, "tutorial-cook");
 
   if (steps.tips) {
     const tips = document.createElement("div");
     tips.className = "tutorial-tips";
-    tips.innerHTML = "<h4>💡 小贴士与常见失败点</h4>";
+    tips.innerHTML = "<h4>" + uiIcon("bulb") + "小贴士与常见失败点</h4>";
     const p = document.createElement("p");
     p.textContent = steps.tips;
     tips.appendChild(p);
@@ -4453,7 +4460,7 @@ function initScheduleEvents() {
       let payload = null;
       try { payload = JSON.parse(e.data); } catch { return; }
       if (!payload) return;
-      showAppStatus(`⏰ ${payload.title || "定时提醒"} 已触发`, true);
+      showAppStatus(`定时提醒 ${payload.title || ""} 已触发`, true);
       if (window.__umamiPet) window.__umamiPet.setState("waving");
       if (payload.conversationId && payload.conversationId !== currentConversationId) {
         reminderConversations.add(payload.conversationId);

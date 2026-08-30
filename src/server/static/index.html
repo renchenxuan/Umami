@@ -11,6 +11,26 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body data-view="chat">
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="i-tools-kitchen" viewBox="0 0 24 24"><path d="M4 3h8l-1 9h-6z M7 18h2v3h-2z M20 3v12h-5c-.023 -3.681 .184 -7.406 5 -12z M20 15v6h-1v-3 M8 12l0 6"/></symbol>
+  <symbol id="i-snowflake" viewBox="0 0 24 24"><path d="M10 4l2 1l2 -1 M12 2v6.5l3 1.72 M17.928 6.268l.134 2.232l1.866 1.232 M20.66 7l-5.629 3.25l.01 3.458 M19.928 14.268l-1.866 1.232l-.134 2.232 M20.66 17l-5.629 -3.25l-2.99 1.738 M14 20l-2 -1l-2 1 M12 22v-6.5l-3 -1.72 M6.072 17.732l-.134 -2.232l-1.866 -1.232 M3.34 17l5.629 -3.25l-.01 -3.458 M4.072 9.732l1.866 -1.232l.134 -2.232 M3.34 7l5.629 3.25l2.99 -1.738"/></symbol>
+  <symbol id="i-barbell" viewBox="0 0 24 24"><path d="M2 12h1 M6 8h-2a1 1 0 0 0 -1 1v6a1 1 0 0 0 1 1h2 M6 7v10a1 1 0 0 0 1 1h1a1 1 0 0 0 1 -1v-10a1 1 0 0 0 -1 -1h-1a1 1 0 0 0 -1 1z M9 12h6 M15 7v10a1 1 0 0 0 1 1h1a1 1 0 0 0 1 -1v-10a1 1 0 0 0 -1 -1h-1a1 1 0 0 0 -1 1z M18 8h2a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-2 M22 12h-1"/></symbol>
+  <symbol id="i-scale" viewBox="0 0 24 24"><path d="M7 20l10 0 M6 6l6 -1l6 1 M12 3l0 17 M9 12l-3 -6l-3 6a3 3 0 0 0 6 0 M21 12l-3 -6l-3 6a3 3 0 0 0 6 0"/></symbol>
+  <symbol id="i-alarm" viewBox="0 0 24 24"><path d="M12 13m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0 M12 10l0 3l2 0 M7 4l-2.75 2 M17 4l2.75 2"/></symbol>
+  <symbol id="i-chef-hat" viewBox="0 0 24 24"><path d="M12 3c1.918 0 3.52 1.35 3.91 3.151a4 4 0 0 1 2.09 7.723l0 7.126h-12v-7.126a4 4 0 1 1 2.092 -7.723a4 4 0 0 1 3.908 -3.151z M6.161 17.009l11.839 -.009"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><path d="M16.555 3.843l3.602 3.602a2.877 2.877 0 0 1 0 4.069l-2.643 2.643a2.877 2.877 0 0 1 -4.069 0l-.301 -.301l-6.558 6.558a2 2 0 0 1 -1.239 .578l-.175 .008h-1.172a1 1 0 0 1 -.993 -.883l-.007 -.117v-1.172a2 2 0 0 1 .467 -1.284l.119 -.13l.414 -.414h2v-2h2v-2l2.144 -2.144l-.301 -.301a2.877 2.877 0 0 1 0 -4.069l2.643 -2.643a2.877 2.877 0 0 1 4.069 0z M15 9h.01"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M3 7l6 -3l6 3l6 -3v13l-6 3l-6 -3l-6 3v-13 M9 4v13 M15 7v13"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4 M13.5 6.5l4 4"/></symbol>
+  <symbol id="i-file-spreadsheet" viewBox="0 0 24 24"><path d="M14 3v4a1 1 0 0 0 1 1h4 M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z M8 11h8v7h-8z M8 15h8 M11 11v7"/></symbol>
+  <symbol id="i-temperature-snow" viewBox="0 0 24 24"><path d="M4 13.5a4 4 0 1 0 4 0v-8.5a2 2 0 1 0 -4 0v8.5 M4 9h4 M14.75 4l1 2h2.25 M17 4l-3 5l2 3 M20.25 10l-1.25 2l1.25 2 M22 12h-6l-2 3 M18 18h-2.25l-1 2 M17 20l-3 -5h-1 M12 9l2.088 .008"/></symbol>
+  <symbol id="i-basket" viewBox="0 0 24 24"><path d="M10 14a2 2 0 1 0 4 0a2 2 0 0 0 -4 0 M5.001 8h13.999a2 2 0 0 1 1.977 2.304l-1.255 7.152a3 3 0 0 1 -2.966 2.544h-9.512a3 3 0 0 1 -2.965 -2.544l-1.255 -7.152a2 2 0 0 1 1.977 -2.304z M17 10l-2 -6 M7 10l2 -6"/></symbol>
+  <symbol id="i-cut" viewBox="0 0 24 24"><path d="M7 17m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M17 17m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M9.15 14.85l8.85 -10.85 M6 4l8.85 10.85"/></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 10.941c2.333 -3.308 .167 -7.823 -1 -8.941c0 3.395 -2.235 5.299 -3.667 6.706c-1.43 1.408 -2.333 3.621 -2.333 5.588c0 3.704 3.134 6.706 7 6.706s7 -3.002 7 -6.706c0 -1.712 -1.232 -4.403 -2.333 -5.588c-2.084 3.353 -3.257 3.353 -4.667 2.235"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7 M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3 M9.7 17l4.6 0"/></symbol>
+  <symbol id="i-alert-triangle" viewBox="0 0 24 24"><path d="M12 9v4 M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z M12 16h.01"/></symbol>
+  <symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M6.5 7h11 M6.5 17h11 M6 20v-2a6 6 0 1 1 12 0v2a1 1 0 0 1 -1 1h-10a1 1 0 0 1 -1 -1z M6 4v2a6 6 0 1 0 12 0v-2a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1z"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M13 20l7 -7 M13 20v-6a1 1 0 0 1 1 -1h6v-7a2 2 0 0 0 -2 -2h-12a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7"/></symbol>
+</svg>
   <a class="skip-link" href="#main-content">跳到主内容</a>
   <div class="bg-aurora" aria-hidden="true"></div>
   <div class="cursor-glow" aria-hidden="true"></div>
@@ -93,7 +113,7 @@
 
       <div id="app-status" class="app-status hidden" role="status" aria-live="polite"></div>
       <div id="model-guidance" class="guidance-banner hidden" role="alert">
-        <span class="guidance-icon">🔑</span>
+        <span class="guidance-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-key"/></svg></span>
         <div class="guidance-text">
           <strong>先完成一步设置</strong>
           <span>在生成食谱、分析与推荐前，请先在「设置」中配置模型 API Key。</span>
@@ -170,7 +190,7 @@
           <h2>训练</h2>
           <p class="page-desc">记录训练计划与每日时长；到「今日总览」点「健康分析」，AI 会结合这些记录给出分析。</p>
           <div id="maps-banner" class="guidance-banner hidden" role="status">
-            <span class="guidance-icon" aria-hidden="true">🗺️</span>
+            <span class="guidance-icon" aria-hidden="true"><svg class="ui-icon" aria-hidden="true"><use href="#i-map"/></svg></span>
             <div class="guidance-text">
               <strong>连接地图服务，让户外训练更落地</strong>
               <span>连接百度/高德/谷歌任一地图后，AI 可查询附近公园/操场、测算步行与骑行路线的距离耗时。生成路线建议时会把起点/终点地名与搜索词发送给对应地图服务商。</span>
@@ -232,7 +252,7 @@
               <h2>开小灶</h2>
               <p class="page-desc">手把手教你做菜：内置家常菜教程，也可以让 AI 生成、或自己写一份。份量为按人数的换算假设、热量为估算值，教程为烹饪参考。</p>
             </div>
-            <button id="tutorial-new-btn" class="secondary-btn tutorial-new-btn" type="button">✍️ 自己写一个</button>
+            <button id="tutorial-new-btn" class="secondary-btn tutorial-new-btn" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#i-pencil"/></svg> 自己写一个</button>
           </div>
           <form id="tutorial-form" class="form-row tutorial-form">
             <input id="t-dish" class="field" placeholder="让 AI 教你做一道菜，如 可乐鸡翅" maxlength="60" />
@@ -320,12 +340,12 @@
 
       <footer id="footer" class="footer">
         <div class="composer-quick" role="toolbar" aria-label="快捷操作">
-          <button type="button" class="quick-chip" data-prompt="帮我记录今天吃了：">🍳 记一笔</button>
-          <button type="button" class="quick-chip" data-prompt="看看冰箱里能做什么菜">🧊 冰箱做菜</button>
-          <button type="button" class="quick-chip" data-prompt="推荐一下今天的运动">💪 今日运动</button>
-          <button type="button" class="quick-chip" data-prompt="帮我记录体重">⚖️ 记体重</button>
-        <button type="button" class="quick-chip" data-prompt="每天晚上六点提醒我吃晚饭">⏰ 建提醒</button>
-        <button type="button" class="quick-chip" data-prompt="教我做一道家常快手菜">🍳 开小灶</button>
+          <button type="button" class="quick-chip" data-prompt="帮我记录今天吃了："><svg class="ui-icon" aria-hidden="true"><use href="#i-tools-kitchen"/></svg>记一笔</button>
+          <button type="button" class="quick-chip" data-prompt="看看冰箱里能做什么菜"><svg class="ui-icon" aria-hidden="true"><use href="#i-snowflake"/></svg>冰箱做菜</button>
+          <button type="button" class="quick-chip" data-prompt="推荐一下今天的运动"><svg class="ui-icon" aria-hidden="true"><use href="#i-barbell"/></svg>今日运动</button>
+          <button type="button" class="quick-chip" data-prompt="帮我记录体重"><svg class="ui-icon" aria-hidden="true"><use href="#i-scale"/></svg>记体重</button>
+        <button type="button" class="quick-chip" data-prompt="每天晚上六点提醒我吃晚饭"><svg class="ui-icon" aria-hidden="true"><use href="#i-alarm"/></svg>建提醒</button>
+        <button type="button" class="quick-chip" data-prompt="教我做一道家常快手菜"><svg class="ui-icon" aria-hidden="true"><use href="#i-chef-hat"/></svg>开小灶</button>
       </div>
         <div id="preview" class="preview hidden">
           <img id="preview-img" alt="图片预览" />
@@ -469,7 +489,7 @@
         <h3 class="services-subhead">工具服务</h3>
         <div class="service-card is-planned">
           <div class="service-head">
-            <span class="service-name">📄 飞书表格</span>
+            <span class="service-name"><svg class="ui-icon" aria-hidden="true"><use href="#i-file-spreadsheet"/></svg> 飞书表格</span>
             <span class="service-state planned">即将支持</span>
           </div>
           <p class="service-desc">连接后可读写你的在线表格，比如「把今天吃的记进飞书表格」。</p>
@@ -585,8 +605,8 @@
         <select id="food-unit" class="field"></select>
       </div>
       <div class="zone-row" id="food-zone-row" role="radiogroup" aria-label="存放分区">
-        <button type="button" class="zone-btn active" data-zone="fridge">❄️ 冷藏层</button>
-        <button type="button" class="zone-btn" data-zone="freezer">🧊 冷冻层</button>
+        <button type="button" class="zone-btn active" data-zone="fridge"><svg class="ui-icon" aria-hidden="true"><use href="#i-temperature-snow"/></svg>冷藏层</button>
+        <button type="button" class="zone-btn" data-zone="freezer"><svg class="ui-icon" aria-hidden="true"><use href="#i-snowflake"/></svg>冷冻层</button>
       </div>
       <div class="settings-actions">
         <button id="food-add-btn" class="primary-btn">加入冰箱</button>

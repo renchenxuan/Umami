@@ -4423,20 +4423,35 @@ html[data-ambient="reduced"] .bg-dust { display: none !important; }
 }
 /* 导航钮悬停药丸底 */
 .nav-btn:not(.active):hover { background: rgba(47, 158, 110, 0.09); }
-/* 看板卡片拖拽物理：跟手微放大 + 速度倾斜 */
+/* 看板卡片拖拽态：轻微抬升 + 阴影，松手即落位（无惯性/反弹/倾斜） */
 .board-card.dragging {
   z-index: 30;
   cursor: grabbing;
   box-shadow: 0 18px 48px rgba(12, 58, 43, 0.32), 0 6px 16px rgba(12, 58, 43, 0.22);
-  transform: scale(1.04) rotate(var(--tilt, 0deg));
-  transition: transform 0.08s linear;
-  will-change: left, top, transform;
+  transform: scale(1.02);
+  transition: transform 0.15s var(--ease);
+  will-change: left, top;
 }
-.board-card:not(.dragging) { transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
 @media (prefers-reduced-motion: reduce) {
   .board-card.dragging { transform: none; }
   .list-row:hover, .tutorial-row:hover, .manage-row:hover, .service-card:hover { transform: none; }
 }
+
+/* ===================== 视觉质感：卡片的细腻光影层次 ===================== */
+/* 深色主题下卡片顶部一道发丝高光 + 更柔和的描边，营造「quiet premium」的贴合感 */
+[data-theme="dark"] .board-card,
+[data-theme="dark"] .service-card,
+[data-theme="dark"] .tutorial-result,
+[data-theme="dark"] .list-row,
+[data-theme="dark"] .tutorial-row,
+[data-theme="dark"] .manage-row {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045), var(--shadow-sm);
+}
+[data-theme="dark"] .board-card.dragging {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 18px 48px rgba(12, 58, 43, 0.32), 0 6px 16px rgba(12, 58, 43, 0.22);
+}
+/* 看板画布点阵更含蓄 */
+.board-canvas { background-image: radial-gradient(rgba(47, 158, 110, 0.07) 1px, transparent 1px); }
 
 /* ===================== v3.2 修缮：文字和谐 / Spotlight / 骨架屏（taste-skill 保留模式） ===================== */
 /* 同意行融入页面：muted 灰绿调，勾选框用品牌色 */

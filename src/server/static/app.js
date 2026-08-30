@@ -1468,31 +1468,16 @@ function makeDraggable(cardEl, key) {
     cardEl.classList.add("dragging");
     cardEl.setPointerCapture(e.pointerId);
 
-    // 拖拽物理：记录速度（px/ms）驱动跟手倾斜；松手后惯性滑行 + 弹性落位
-    const reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    let lastX = e.clientX;
-    let lastY = e.clientY;
-    let lastT = performance.now();
-    let vx = 0;
-    let vy = 0;
-
+    // 拖拽 1:1 跟手，松手即落位——不做惯性/反弹/倾斜（按设计取向：视觉质感优先于体感特效）
     const onMove = (ev) => {
       cardEl.style.left = (origLeft + ev.clientX - startX) + "px";
       cardEl.style.top = (origTop + ev.clientY - startY) + "px";
-      const now = performance.now();
-      const dt = Math.max(now - lastT, 1);
-      vx = 0.7 * vx + 0.3 * ((ev.clientX - lastX) / dt);
-      vy = 0.7 * vy + 0.3 * ((ev.clientY - lastY) / dt);
-      lastX = ev.clientX;
-      lastY = ev.clientY;
-      lastT = now;
-      if (!reducedMotion) {
-        const tilt = Math.max(-6, Math.min(6, vx * 12));
-        cardEl.style.setProperty("--tilt", tilt.toFixed(2) + "deg");
-      }
     };
 
-    const finalize = () => {
+    const onUp = () => {
+      cardEl.removeEventListener("pointermove", onMove);
+      cardEl.removeEventListener("pointerup", onUp);
+      cardEl.removeEventListener("pointercancel", onUp);
       const host = boardInner || boardCanvas;
       const maxX = Math.max(0, host.clientWidth - cardEl.offsetWidth);
       const maxY = Math.max(0, host.clientHeight - cardEl.offsetHeight);
@@ -1500,38 +1485,9 @@ function makeDraggable(cardEl, key) {
       const y = Math.round(Math.max(0, Math.min(cardEl.offsetTop, maxY)));
       cardEl.style.left = x + "px";
       cardEl.style.top = y + "px";
-      cardEl.style.removeProperty("--tilt");
       cardEl.classList.remove("dragging");
       saveBoardPosition(key, x, y);
       layoutBoardInner();
-    };
-
-    // 惯性滑行：速度指数衰减，碰壁轻微反弹；足够慢后落位保存
-    const glide = () => {
-      const host = boardInner || boardCanvas;
-      const maxX = Math.max(0, host.clientWidth - cardEl.offsetWidth);
-      const maxY = Math.max(0, host.clientHeight - cardEl.offsetHeight);
-      const step = () => {
-        if (Math.hypot(vx, vy) < 0.02) { finalize(); return; }
-        let x = cardEl.offsetLeft + vx * 16;
-        let y = cardEl.offsetTop + vy * 16;
-        if (x < 0 || x > maxX) { vx = -vx * 0.35; x = Math.max(0, Math.min(x, maxX)); }
-        if (y < 0 || y > maxY) { vy = -vy * 0.35; y = Math.max(0, Math.min(y, maxY)); }
-        cardEl.style.left = x + "px";
-        cardEl.style.top = y + "px";
-        vx *= 0.92;
-        vy *= 0.92;
-        requestAnimationFrame(step);
-      };
-      requestAnimationFrame(step);
-    };
-
-    const onUp = () => {
-      cardEl.removeEventListener("pointermove", onMove);
-      cardEl.removeEventListener("pointerup", onUp);
-      cardEl.removeEventListener("pointercancel", onUp);
-      if (reducedMotion || Math.hypot(vx, vy) < 0.15) finalize();
-      else glide();
     };
     cardEl.addEventListener("pointermove", onMove);
     cardEl.addEventListener("pointerup", onUp);
@@ -4323,9 +4279,9 @@ if (tutorialForm) tutorialForm.addEventListener("submit", async (e) => {
   }
 });
 
-// ---- 交互质感：Spotlight 边框 + 主按钮磁性微跟随 ----
-// 动机：悬停反馈（光随手动）与主操作引力；只写 CSS 变量、只动 transform/opacity。
-(function initTactileEffects() {
+// ---- 交互质感：Spotlight 边框（视觉悬停反馈，不动物理） ----
+// 动机：悬停反馈（光随手动）；只写 CSS 变量、只动 opacity。
+(function initSpotlight() {
   const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (reduced) return;
   let pending = null;
@@ -4340,19 +4296,6 @@ if (tutorialForm) tutorialForm.addEventListener("submit", async (e) => {
       card.style.setProperty("--sy", (((e.clientY - rect.top) / rect.height) * 100).toFixed(1) + "%");
     });
   }, { passive: true });
-
-  // 磁性：主 CTA 悬停时向光标轻移 ≤4px，移出回弹
-  for (const cta of [document.getElementById("t-generate")]) {
-    if (!cta) continue;
-    cta.style.transition = "transform 0.2s var(--ease)";
-    cta.addEventListener("pointermove", (e) => {
-      const rect = cta.getBoundingClientRect();
-      const dx = ((e.clientX - rect.left) / rect.width - 0.5) * 8;
-      const dy = ((e.clientY - rect.top) / rect.height - 0.5) * 6;
-      cta.style.transform = `translate(${Math.max(-4, Math.min(4, dx)).toFixed(1)}px, ${Math.max(-3, Math.min(3, dy)).toFixed(1)}px)`;
-    });
-    cta.addEventListener("pointerleave", () => { cta.style.transform = ""; });
-  }
 })();
 
 // ---- 外部服务（训练页横幅 + 设置中心「外部服务」页签） ----

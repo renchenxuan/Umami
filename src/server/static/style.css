@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --bg: #f6f7f6;
   --surface: rgba(255, 255, 255, 0.62);
   --surface-solid: #ffffff;
@@ -47,6 +48,7 @@
 }
 
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg: #121513;
   --surface: rgba(25, 28, 26, 0.72);
   --surface-solid: #191c1a;
@@ -2693,10 +2695,12 @@ body.has-cursor .cursor-glow {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* 按钮统一为相对定位并裁剪，配合 JS 涟漪 */
+/* 按钮统一为相对定位并裁剪，配合 JS 涟漪；
+   color: inherit 让未显式设色的按钮跟随主题文字色（否则 UA 默认黑字在深色主题下不可读） */
 button {
   position: relative;
   overflow: hidden;
+  color: inherit;
 }
 
 .ripple {

@@ -3505,8 +3505,8 @@ saveBtn.addEventListener("click", async () => {
   }
 });
 
-// ---- 视觉增强：氛围层视差 + 按钮涟漪 ----
-// --mx/--my 驱动蒸汽/光尘/台面的轻微鼠标视差（v3.1 已移除光标聚光层）
+// ---- 视觉增强：光标聚光 + 氛围层视差 + 按钮涟漪 ----
+// --mx/--my 驱动聚光与蒸汽/光尘/台面的轻微鼠标视差
 const rootEl = document.documentElement;
 let glowX = window.innerWidth / 2, glowY = window.innerHeight / 2, glowRAF = null;
 function applyGlow() {
@@ -3517,6 +3517,7 @@ function applyGlow() {
 window.addEventListener("pointermove", (e) => {
   glowX = e.clientX;
   glowY = e.clientY;
+  if (!document.body.classList.contains("has-cursor")) document.body.classList.add("has-cursor");
   if (glowRAF === null) glowRAF = requestAnimationFrame(applyGlow);
 }, { passive: true });
 

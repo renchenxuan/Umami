@@ -2619,8 +2619,8 @@ html {
   transform: translateX(3px);
 }
 
-/* ===================== 视觉增强（极光背景 / 涟漪 / 错峰） ===================== */
-/* v3.1 设计收敛：移除光标聚光与悬浮装饰层，保留品牌极光与台面氛围（可在设置中关闭） */
+/* ===================== 视觉增强（极光背景 / 光标聚光 / 涟漪 / 错峰 / 呼吸） ===================== */
+/* v3.1 设计收敛：移除悬浮装饰层；按用户偏好保留光标聚光与点击/成功涟漪的质感反馈 */
 .bg-aurora {
   position: fixed;
   inset: 0;
@@ -2642,6 +2642,32 @@ html {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   opacity: 0.05;
   mix-blend-mode: overlay;
+}
+
+/* 光标聚光：鼠标位置的一圈柔和薄荷光晕（触屏/无鼠标时不出现） */
+.cursor-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+  background: radial-gradient(320px circle at var(--mx) var(--my), rgba(52, 211, 153, 0.06), transparent 42%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+
+body.has-cursor .cursor-glow {
+  opacity: 1;
+}
+
+.logo-mark {
+  transform-origin: center;
+  animation: logoBreath 7s ease-in-out infinite;
+}
+
+@keyframes logoBreath {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.07); }
 }
 
 @keyframes auroraDrift {
@@ -2702,7 +2728,8 @@ button {
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
-  .bg-aurora {
+  .bg-aurora,
+  .cursor-glow {
     display: none !important;
   }
 }

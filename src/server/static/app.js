@@ -2453,7 +2453,7 @@ function openShoppingModal() {
 
 async function loadShopping() {
   if (!shoppingList) return;
-  shoppingList.innerHTML = '<div class="loading-spinner"></div>';
+  shoppingList.innerHTML = '<div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div>';
   try {
     const list = await apiRequest("/api/v1/shopping-items");
     renderShopping(Array.isArray(list) ? list : []);
@@ -3613,7 +3613,7 @@ function openFavoritesModal(tab) {
 })();
 
 async function loadFavoritesOrHistory() {
-  fhList.innerHTML = '<div class="loading-spinner"></div>';
+  fhList.innerHTML = '<div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div>';
   fhDetail.innerHTML = '<div class="fh-empty">从左侧选择一条查看详情</div>';
   try {
     const url = fhCurrentTab === "favorites" ? "/api/v1/favorites" : "/api/v1/recipe-history";
@@ -3682,7 +3682,7 @@ const goalsList = document.getElementById("goals-list");
 function openGoalsModal() { openModal(goalsModal); loadGoals(); }
 
 async function loadGoals() {
-  goalsList.innerHTML = '<div class="loading-spinner"></div>';
+  goalsList.innerHTML = '<div class="skeleton-row"></div><div class="skeleton-row"></div>';
   try {
     const res = await fetch("/api/v1/goals");
     const data = await res.json();
@@ -3746,7 +3746,7 @@ const habitsList = document.getElementById("habits-list");
 function openHabitsModal() { openModal(habitsModal); loadHabits(); }
 
 async function loadHabits() {
-  habitsList.innerHTML = '<div class="loading-spinner"></div>';
+  habitsList.innerHTML = '<div class="skeleton-row"></div><div class="skeleton-row"></div>';
   try {
     const res = await fetch("/api/v1/habits");
     const data = await res.json();
@@ -3818,7 +3818,7 @@ if (schedulesBtn) schedulesBtn.addEventListener("click", openSchedulesModal);
 if (schedulesClose) schedulesClose.addEventListener("click", () => closeModal(schedulesModal));
 
 async function loadSchedules() {
-  schedulesList.innerHTML = '<div class="loading-spinner"></div>';
+  schedulesList.innerHTML = '<div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div>';
   try {
     const list = await apiRequest("/api/v1/schedules");
     renderSchedules(Array.isArray(list) ? list : []);

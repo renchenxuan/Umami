@@ -36,7 +36,15 @@
   --shadow-md: 0 1px 2px rgba(12, 58, 43, 0.04), 0 8px 24px rgba(12, 58, 43, 0.09), 0 24px 60px rgba(12, 58, 43, 0.06);
   --shadow-lg: 0 2px 4px rgba(12, 58, 43, 0.05), 0 16px 40px rgba(12, 58, 43, 0.14), 0 40px 90px rgba(12, 58, 43, 0.1);
   --font-display: "Noto Serif SC", "Songti SC", "STSong", "SimSun", "Microsoft YaHei", serif;
-  --font-body: "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --font-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  /* 字重层级：Medium/SemiBold 补全中间档，避免只有 400/600/700 的生硬跳变 */
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  /* 圆角分档：小元素 8-12px 字面值，容器统一走令牌（md=卡片/lg=大卡与气泡/xl=弹窗与输入舱） */
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 22px;
+  --radius-pill: 999px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --dur: 0.3s;
   --mx: 50%;
@@ -209,7 +217,7 @@ body {
   margin: 0 4px 14px;
   padding: 12px 16px;
   border: 1px solid transparent;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: linear-gradient(135deg, var(--cta-grad-a), var(--cta-grad-b));
   color: var(--on-accent);
   cursor: pointer;
@@ -370,7 +378,7 @@ body {
 .chip {
   background: var(--mint);
   color: var(--emerald-deep);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 4px 12px;
   font-size: 12px;
   font-weight: 500;
@@ -424,7 +432,7 @@ body {
 .bubble {
   max-width: 76%;
   padding: 12px 16px;
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
   line-height: 1.7;
   font-size: 15px;
   white-space: pre-wrap;
@@ -440,8 +448,8 @@ body {
 }
 
 .msg.user .bubble {
-  background: linear-gradient(135deg, var(--emerald-bright), var(--emerald));
-  color: #fff;
+  background: linear-gradient(135deg, var(--cta-grad-a), var(--cta-grad-b));
+  color: var(--on-accent);
   border-top-right-radius: 6px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), 0 8px 20px rgba(47, 158, 110, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
@@ -507,7 +515,7 @@ body {
 .msg-img {
   max-width: 60%;
   max-height: 240px;
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--line-soft);
   box-shadow: var(--shadow-md);
 }
@@ -527,7 +535,7 @@ body {
   background: var(--surface-solid);
   border: 1px solid var(--line-soft);
   border-left: 4px solid var(--emerald-bright);
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   padding: 14px 16px;
   max-width: 78%;
   display: flex;
@@ -583,8 +591,8 @@ body {
 }
 
 .action-confirm {
-  background: linear-gradient(135deg, var(--emerald-bright), var(--emerald));
-  color: #fff;
+  background: linear-gradient(135deg, var(--cta-grad-a), var(--cta-grad-b));
+  color: var(--on-accent);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16), 0 4px 10px rgba(47, 158, 110, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
@@ -622,7 +630,7 @@ body {
   position: relative;
   margin-bottom: 12px;
   display: inline-block;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   box-shadow: var(--shadow-md);
 }
@@ -630,7 +638,7 @@ body {
 .preview img {
   display: block;
   max-height: 120px;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
 }
 
 .clear-img {
@@ -655,7 +663,7 @@ body {
   padding: 10px;
   background: var(--surface-solid);
   border: 1px solid var(--line-soft);
-  border-radius: 22px;
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-md);
 }
 
@@ -681,7 +689,7 @@ body {
 .send-btn {
   border: none;
   cursor: pointer;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   height: 42px;
   font-size: 15px;
   display: flex;
@@ -734,7 +742,7 @@ body {
 .modal-content {
   background: linear-gradient(180deg, var(--surface-solid), var(--surface-solid));
   border: 1px solid var(--line-soft);
-  border-radius: 22px;
+  border-radius: var(--radius-xl);
   padding: 24px;
   width: 380px;
   max-width: 92vw;
@@ -1006,7 +1014,7 @@ button:active {
   background: var(--surface-solid);
   color: var(--muted);
   padding: 5px 13px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   font-size: 12.5px;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
@@ -1041,7 +1049,7 @@ button:active {
   text-align: center;
   padding: 14px 10px;
   border: 1px solid var(--line-soft);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--surface-solid);
   cursor: pointer;
   box-shadow: var(--shadow-sm);
@@ -1259,7 +1267,7 @@ button:active {
   width: 260px;
   min-height: 120px;
   padding: 18px 20px;
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
   background: linear-gradient(160deg, var(--surface-solid), var(--surface-solid));
   border: 1px solid var(--line-soft);
   box-shadow: var(--shadow-md);
@@ -1442,7 +1450,7 @@ button:active {
   background: var(--surface-solid);
   color: var(--muted);
   padding: 7px 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   font-size: 13px;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
@@ -1474,7 +1482,7 @@ button:active {
   margin-top: 16px;
   padding: 16px 18px;
   border: 1px solid var(--line-soft);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: rgba(47, 158, 110, 0.08);
   color: var(--text);
   font-size: 13.5px;
@@ -1545,7 +1553,7 @@ button:active {
 .recommend-section {
   background: var(--surface-solid);
   border: 1px solid var(--line-soft);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   padding: 16px 18px;
   box-shadow: var(--shadow-sm);
   animation: riseIn 0.3s ease backwards;
@@ -1630,7 +1638,14 @@ input[type="number"],
 .fridge-zone-temp,
 .board-card-badge,
 .summary,
-.fridge-count {
+.fridge-count,
+.diet-ring-center strong,
+.kcal-badge,
+.wc-val,
+.diet-trend-col span,
+.conversation-time,
+.msg-time,
+.fridge-item-meta {
   font-variant-numeric: tabular-nums;
 }
 
@@ -1794,7 +1809,7 @@ input[type="number"],
 .rec-card {
   background: var(--surface-solid);
   border: 1px solid var(--line-soft);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   padding: 14px 16px;
   box-shadow: var(--shadow-sm);
   animation: riseIn 0.3s ease backwards;
@@ -1882,7 +1897,7 @@ input[type="number"],
   background: var(--surface-solid);
   color: var(--muted);
   padding: 7px 16px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   font-size: 13px;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
@@ -2085,8 +2100,8 @@ input[type="number"],
   align-items: center;
   gap: 6px;
   border: 1px solid transparent;
-  background: linear-gradient(135deg, var(--emerald-bright), var(--emerald));
-  color: #fff;
+  background: linear-gradient(135deg, var(--cta-grad-a), var(--cta-grad-b));
+  color: var(--on-accent);
   padding: 7px 13px;
   border-radius: 10px;
   cursor: pointer;
@@ -2112,7 +2127,7 @@ input[type="number"],
 }
 
 .fridge-zone {
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
   padding: 14px 14px 16px;
   flex: 1;
   min-height: 0;
@@ -2367,7 +2382,7 @@ input[type="number"],
 .fridge-badge {
   font-size: 11px;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-weight: 600;
   flex-shrink: 0;
 }
@@ -2419,7 +2434,7 @@ input[type="number"],
   margin-top: 12px;
   padding: 14px 16px;
   border: 1px solid var(--line-soft);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--surface-solid);
   font-size: 13.5px;
   line-height: 1.7;
@@ -2446,7 +2461,7 @@ input[type="number"],
   padding: 12px 8px;
   border: 1px solid var(--line-soft);
   background: var(--surface-solid);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   box-shadow: var(--shadow-sm);
   transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease;
@@ -2575,7 +2590,7 @@ input[type="number"],
 .messages::-webkit-scrollbar-thumb,
 .conversation-list::-webkit-scrollbar-thumb {
   background: rgba(47, 158, 110, 0.16);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .messages::-webkit-scrollbar-thumb:hover,
@@ -2807,7 +2822,7 @@ button {
   gap: 14px;
   padding: 14px 16px;
   border: 1px solid var(--line-soft);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--surface-solid);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -2863,7 +2878,7 @@ button {
   -webkit-appearance: none;
   background: var(--fill);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   transition: background 0.22s ease, border-color 0.22s ease;
   outline: none;
@@ -3017,7 +3032,7 @@ button {
   background: var(--surface-solid);
   color: var(--text);
   padding: 9px 18px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 13.5px;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
@@ -3098,7 +3113,7 @@ button {
   gap: 12px;
   margin: 12px 0 4px;
   padding: 12px 16px;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: linear-gradient(135deg, rgba(52, 211, 153, 0.16), rgba(56, 189, 248, 0.12));
   border: 1px solid rgba(52, 211, 153, 0.35);
   backdrop-filter: blur(10px);
@@ -3321,7 +3336,7 @@ button {
   color: var(--sage);
   background: var(--mint);
   border: 1px solid var(--line-soft);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 3px 10px;
   animation: riseIn 0.28s var(--ease) both;
 }
@@ -3359,7 +3374,7 @@ button {
   color: var(--muted);
   font-size: 12.5px;
   padding: 6px 16px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   margin: 4px 0 10px;
   box-shadow: var(--shadow-sm);
@@ -3498,7 +3513,7 @@ button {
 .weight-chart {
   background: var(--surface);
   border: 1px solid var(--line-soft);
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   padding: 12px 12px 6px;
   margin-bottom: 16px;
   box-shadow: var(--shadow-sm);
@@ -3867,7 +3882,7 @@ body:not([data-view="chat"]) .pet-companion { display: none; }
   flex-wrap: wrap;
   background: var(--surface);
   border: 1px solid var(--line-soft);
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   padding: 16px 20px;
   margin-bottom: 14px;
 }
@@ -3923,7 +3938,7 @@ body:not([data-view="chat"]) .pet-companion { display: none; }
   align-items: flex-start;
   gap: 9px;
   padding: 10px 12px;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   position: relative;
 }
@@ -3995,7 +4010,7 @@ body:not([data-view="chat"]) .pet-companion { display: none; }
   flex: none;
   font-size: 12px;
   padding: 5px 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--line-soft);
   background: var(--surface);
   color: var(--muted);
@@ -4266,7 +4281,7 @@ html[data-ambient="reduced"] .bg-dust { display: none !important; }
   margin-top: 16px;
   padding: 18px 20px;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
@@ -4313,7 +4328,7 @@ html[data-ambient="reduced"] .bg-dust { display: none !important; }
   background: var(--surface);
   color: var(--muted);
   padding: 5px 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
@@ -4325,7 +4340,7 @@ html[data-ambient="reduced"] .bg-dust { display: none !important; }
 .tutorial-badge {
   display: inline-block;
   padding: 1px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--mint);
   color: var(--emerald-deep);
   font-size: 10.5px;
@@ -4384,7 +4399,7 @@ html[data-ambient="reduced"] .bg-dust { display: none !important; }
 .services-note { margin: 0 0 12px; font-size: 12px; line-height: 1.6; color: var(--muted); }
 .service-card {
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   padding: 14px 16px;
   margin-bottom: 12px;
@@ -4398,7 +4413,7 @@ html[data-ambient="reduced"] .bg-dust { display: none !important; }
   font-size: 11.5px;
   font-weight: 700;
   padding: 2px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--fill);
   color: var(--muted);
 }
@@ -4531,7 +4546,7 @@ html[data-ambient="reduced"] .bg-dust { display: none !important; }
   max-width: 60vw;
   padding: 6px 14px;
   font-size: 13px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 /* ===================== v3.3：单色线条 UI 图标（Tabler，MIT） ===================== */
@@ -4562,3 +4577,54 @@ html[data-ambient="reduced"] .bg-dust { display: none !important; }
 .tutorial-new-btn .ui-icon { margin-right: 4px; }
 .tutorial-tips h4 { display: flex; align-items: center; gap: 7px; }
 .tutorial-tips h4 .ui-icon { flex: none; }
+
+/* ===================== v3.3 精修：浅色卡片微渐变 / 通用骨架屏 / 引导式空状态 ===================== */
+/* 浅色主题卡片：极轻的纵向渐变替代纯白平面，配合既有发丝描边营造「quiet premium」贴合感 */
+[data-theme="light"] .board-card,
+[data-theme="light"] .service-card,
+[data-theme="light"] .tutorial-result,
+[data-theme="light"] .list-row,
+[data-theme="light"] .manage-row,
+[data-theme="light"] .rec-card,
+[data-theme="light"] .skill-card {
+  background: linear-gradient(180deg, #ffffff, #fbfdfb);
+}
+
+/* 通用骨架屏：与列表行同形状的微光占位（购物清单/收藏历史/目标/习惯/自动化加载） */
+.skeleton-row {
+  height: 58px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(100deg, var(--fill) 40%, var(--fill-deep) 50%, var(--fill) 60%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s linear infinite;
+}
+.skeleton-row + .skeleton-row { margin-top: 8px; }
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-row { animation: none; }
+}
+
+/* 引导式空状态：虚线容器 + 新芽图标圆片，替代纯文本一行（沿用 board-empty 的构图语言） */
+.fh-empty,
+.list-empty,
+.fridge-empty,
+.food-empty {
+  padding: 26px 18px 30px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, rgba(47, 158, 110, 0.04), transparent 70%);
+  line-height: 1.65;
+}
+.fh-empty::before,
+.list-empty::before,
+.fridge-empty::before,
+.food-empty::before {
+  content: "";
+  display: block;
+  width: 42px;
+  height: 42px;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  background: var(--mint) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237ba98a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z'/%3E%3Cpath d='M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12'/%3E%3C/svg%3E") center/22px no-repeat;
+  box-shadow: inset 0 0 0 1px rgba(47, 158, 110, 0.12);
+}

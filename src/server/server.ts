@@ -1,3 +1,4 @@
+import { resolve, sep } from "node:path";
 import type { Agent } from "@earendil-works/pi-agent-core";
 import type { Model, TextContent } from "@earendil-works/pi-ai";
 import { config, unsafeCustomEndpointsEnabled, type ModelName } from "../config";
@@ -14,7 +15,7 @@ import { buildRecommendationProfile, buildRecommendationUserPrompt, parseRecomme
 import { buildAnalysisProfile, buildAnalysisUserPrompt, parseAnalysis, ANALYSIS_SYSTEM_PROMPT, type AnalysisPeriod } from "./analysis";
 import { buildTutorialProfile, buildTutorialUserPrompt, parseTutorial, TUTORIAL_SYSTEM_PROMPT } from "./tutorial";
 
-const STATIC_DIR = import.meta.dir + "/static";
+const STATIC_DIR = resolve(import.meta.dir, "static");
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -44,9 +45,14 @@ function settingsResponse(path:string,payload:Record<string,unknown>,status=200)
 
 async function serveStatic(pathname: string): Promise<Response | null> {
   const rel = pathname === "/" ? "/index.html" : pathname;
-  const file = Bun.file(STATIC_DIR + rel);
+  // 目录穿越兜底：URL 已归一化，这里再确认解析结果仍落在静态目录内。
+  const filePath = resolve(STATIC_DIR, "." + rel);
+  if (filePath !== STATIC_DIR && !filePath.startsWith(STATIC_DIR + sep)) return null;
+  const file = Bun.file(filePath);
   if (!(await file.exists())) return null;
-  const ext = rel.slice(rel.lastIndexOf("."));
+  // 文件名里没有点（或点只出现在目录名中）时，不应把最后一个字符当作扩展名。
+  const dot = filePath.lastIndexOf(".");
+  const ext = dot > filePath.lastIndexOf(sep) ? filePath.slice(dot).toLowerCase() : "";
   return new Response(file, { headers: { "Content-Type": MIME[ext] ?? "application/octet-stream", "Cache-Control": "no-store" } });
 }
 

@@ -9,30 +9,11 @@ import {
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { text } from "./helpers";
 import { NUTRITION_PROMPT } from "../prompts/nutrition";
+import { extractJson } from "../server/json";
 
 const AnalyzeNutritionSchema = Type.Object({
   week_plan: Type.String(),
 });
-
-/** 从模型输出里提取 JSON（容忍 markdown 代码块包裹）。 */
-function extractJson(raw: string): Record<string, unknown> | null {
-  const stripped = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
-  try {
-    const parsed = JSON.parse(stripped);
-    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
-  } catch {
-    const start = stripped.indexOf("{");
-    const end = stripped.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try {
-        return JSON.parse(stripped.slice(start, end + 1)) as Record<string, unknown>;
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }
-}
 
 function formatNutrition(data: Record<string, unknown>): string {
   const daily = data.daily as Record<string, unknown> | undefined;

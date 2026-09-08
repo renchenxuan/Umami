@@ -27,6 +27,11 @@ const tutorialIngredients=(value:unknown)=>{if(value===undefined)return undefine
 const tutorialStepLines=(value:unknown,field:string)=>{if(value===undefined)return undefined;if(!Array.isArray(value)||value.length>30)throw new ValidationError(field,`${field} 最多 30 行`);return value.map((v)=>{if(typeof v!=="string"||!v.trim()||v.length>500)throw new ValidationError(field,`${field} 每项必须是不超过 500 字的非空文本`);return v.trim()})};
 const tutorialSteps=(value:unknown)=>{if(value===undefined)return undefined;if(!value||typeof value!=="object"||Array.isArray(value))throw new ValidationError("steps","steps 必须是对象");const s=value as Record<string,unknown>;const numOpt=(v:unknown,min:number,max:number)=>typeof v==="number"&&Number.isInteger(v)&&v>=min&&v<=max?v:undefined;return{servings:numOpt(s.servings,1,20),total_minutes:numOpt(s.total_minutes,1,600),meal:text(s,"meal",{max:10,allowEmpty:true}),prep:tutorialStepLines(s.prep,"prep")??[],cook:tutorialStepLines(s.cook,"cook")??[],tips:text(s,"tips",{max:800,allowEmpty:true})??""}};
 class ValidationError extends Error { constructor(readonly field:string,message:string){super(message)} }
+// 菜谱来源白名单：tutorial/preset 由生成端点与迁移播种控制，不能通过通用资源接口伪造
+const RECIPE_SOURCES=new Set(["manual","agent","legacy"]);
+const recipeSource=(o:Record<string,unknown>)=>{const v=text(o,"source",{max:40});if(v===undefined)return undefined;if(!RECIPE_SOURCES.has(v))throw new ValidationError("source","source 必须是 manual、agent 或 legacy");return v};
+/** 通用菜谱的 ingredients/steps/nutrition_estimate 没有固定结构，只约束可序列化与体积上限。 */
+const jsonBlob=(o:Record<string,unknown>,key:string,maxBytes=100_000)=>{const v=o[key];if(v===undefined)return undefined;try{if(JSON.stringify(v).length>maxBytes)throw new ValidationError(key,`${key} 内容过大（上限 ${maxBytes} 字节）`)}catch(e){if(e instanceof ValidationError)throw e;throw new ValidationError(key,`${key} 必须是可序列化的 JSON`)}return v};
 const GOAL_STATUSES=new Set(["进行中","已完成","已暂停","已取消","active","completed","paused","cancelled"]);
 const goalStatus=(o:Record<string,unknown>)=>{const value=text(o,"status",{max:20});if(value!==undefined&&!GOAL_STATUSES.has(value))throw new ValidationError("status","status 不是支持的目标状态");return value};
 
@@ -63,6 +68,8 @@ export function isPublicIpAddress(value:string):boolean{
       (p[0]===192&&p[1]===0&&p[2]===0)||
       (p[0]===192&&p[1]===0&&p[2]===2)||
       (p[0]===192&&p[1]===168)||
+      // 192.88.99.0/24：6to4 中继任播，非公网可路由
+      (p[0]===192&&p[1]===88&&p[2]===99)||
       (p[0]===198&&p[1]>=18&&p[1]<=19)||
       (p[0]===198&&p[1]===51&&p[2]===100)||
       (p[0]===203&&p[1]===0&&p[2]===113)
@@ -77,6 +84,12 @@ export function isPublicIpAddress(value:string):boolean{
     if(embedded){const v4=`${p[6]!>>8}.${p[6]!&255}.${p[7]!>>8}.${p[7]!&255}`;return isPublicIpAddress(v4)}
     // Documentation prefix 2001:db8::/32 is not globally routable.
     if(p[0]===0x2001&&p[1]===0x0db8)return false;
+    // 6to4 (2002::/16) 与 NAT64 (64:ff9b::/96) 内嵌 IPv4，必须沿用 IPv4 判定，否则可以绕开白名单打到内网。
+    if(p[0]===0x2002){const v4=`${p[1]!>>8}.${p[1]!&255}.${p[2]!>>8}.${p[2]!&255}`;return isPublicIpAddress(v4)}
+    if(p[0]===0x0064&&p[1]===0xff9b&&p.slice(2,6).every(n=>n===0)){const v4=`${p[6]!>>8}.${p[6]!&255}.${p[7]!>>8}.${p[7]!&255}`;return isPublicIpAddress(v4)}
+    // Teredo 2001::/32、ORCHID 2001:10::/28、discard-only 100::/64 均非公网可路由。
+    if(p[0]===0x2001&&(p[1]===0x0000||(p[1]!&0xfff0)===0x0010))return false;
+    if(p[0]===0x0100&&p.slice(1,7).every(n=>n===0))return false;
     return true;
   }
   return false;
@@ -98,7 +111,7 @@ function resources(db:RecipeDB):Record<string,Resource>{return{
   "body-metrics":{list:()=>db.getBodyMetrics(),get:id=>db.getBodyMetric(id),create:b=>db.addBodyMetric(date(b,"date",true)!,num(b,"weight_kg",20,500,{required:true})!,num(b,"body_fat_pct",1,75,{nullable:true})??null,text(b,"note",{max:1000})??""),update:(id,b)=>db.updateBodyMetric(id,{date:date(b,"date"),weight_kg:num(b,"weight_kg",20,500)??undefined,body_fat_pct:num(b,"body_fat_pct",1,75,{nullable:true}),note:text(b,"note",{max:1000})}),remove:id=>db.archiveBodyMetric(id)},
   habits:{list:()=>db.getHabits(),get:id=>db.getHabit(id),create:b=>db.addHabit(date(b,"date",true)!,text(b,"habit",{required:true,max:120})!,text(b,"value",{required:true,max:200})!),update:(id,b)=>db.updateHabit(id,{date:date(b,"date"),habit:text(b,"habit",{max:120}),value:text(b,"value",{max:200})}),remove:id=>db.archiveHabit(id)},
   goals:{list:()=>db.getGoals(),get:id=>db.getGoal(id),create:b=>db.createGoal({name:text(b,"name",{required:true,max:120})!,category:text(b,"category",{max:80})??"",target:text(b,"target",{max:200})??"",unit:text(b,"unit",{max:40})??"",status:goalStatus(b)??"进行中",target_value:num(b,"target_value",0,1e9,{nullable:true})??null,current_value:num(b,"current_value",0,1e9,{nullable:true})??null,start_date:date(b,"start_date")??null,end_date:date(b,"end_date")??null}),update:(id,b)=>db.updateGoal(id,{name:text(b,"name",{max:120}),category:text(b,"category",{max:80}),target:text(b,"target",{max:200}),unit:text(b,"unit",{max:40}),status:goalStatus(b),target_value:num(b,"target_value",0,1e9,{nullable:true}),current_value:num(b,"current_value",0,1e9,{nullable:true}),start_date:date(b,"start_date"),end_date:date(b,"end_date")}),remove:id=>db.archiveGoal(id)},
-  recipes:{list:()=>db.getRecipes(),get:id=>db.getRecipe(id),create:b=>db.createRecipe({title:text(b,"title",{required:true,max:200})!,ingredients:b.ingredients,steps:b.steps,nutrition_estimate:b.nutrition_estimate,source:text(b,"source",{max:40})}),update:(id,b)=>db.updateRecipe(id,{title:text(b,"title",{max:200}),ingredients:b.ingredients,steps:b.steps,nutrition_estimate:b.nutrition_estimate,source:text(b,"source",{max:40})}),remove:id=>db.archiveRecipe(id)},
+  recipes:{list:()=>db.getRecipes(),get:id=>db.getRecipe(id),create:b=>db.createRecipe({title:text(b,"title",{required:true,max:200})!,ingredients:jsonBlob(b,"ingredients")??[],steps:jsonBlob(b,"steps")??[],nutrition_estimate:jsonBlob(b,"nutrition_estimate"),source:recipeSource(b)??"manual"}),update:(id,b)=>db.updateRecipe(id,{title:text(b,"title",{max:200}),ingredients:jsonBlob(b,"ingredients"),steps:jsonBlob(b,"steps"),nutrition_estimate:jsonBlob(b,"nutrition_estimate"),source:recipeSource(b)}),remove:id=>db.archiveRecipe(id)},
   "shopping-items":{list:()=>db.getShoppingItems(),get:id=>db.getShoppingItem(id),create:b=>{if(b.checked!==undefined&&typeof b.checked!=="boolean")throw new ValidationError("checked","checked 必须为布尔值");return db.createShoppingItem(text(b,"name",{required:true,max:120})!,text(b,"quantity",{max:80})??"",b.checked??false as boolean)},update:(id,b)=>{if(b.checked!==undefined&&typeof b.checked!=="boolean")throw new ValidationError("checked","checked 必须为布尔值");return db.updateShoppingItem(id,{name:text(b,"name",{max:120}),quantity:text(b,"quantity",{max:80}),checked:b.checked===undefined?undefined:b.checked?1:0})},remove:id=>db.archiveShoppingItem(id)},
   "diet-logs":{list:()=>db.getDietLogs(),get:id=>db.getDietLog(id),create:b=>db.addDietLog(date(b,"date",true)!,mealType(b,true)!,dietFoods(b,true)!,text(b,"note",{max:2000,allowEmpty:true})??""),update:(id,b)=>db.updateDietLog(id,{date:date(b,"date"),meal_type:mealType(b),foods:dietFoods(b),note:text(b,"note",{max:2000,allowEmpty:true})}),remove:id=>db.archiveDietLog(id)},
   favorites:{list:()=>db.getFavorites(),get:id=>db.getFavorite(id),create:()=>{throw new ValidationError("favorites","收藏仅可由对话中的收藏动作创建")},update:()=>false,remove:(id)=>{db.deleteFavorite(id);return true}},

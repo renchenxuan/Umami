@@ -2750,6 +2750,8 @@ button {
 
 .board-card {
   will-change: transform;
+  /* 触摸设备上拖拽由指针事件接管，避免与画布滚动手势冲突导致卡片乱飞 */
+  touch-action: none;
 }
 
 /* 无障碍：用户关闭动效时停掉持续/大幅动画 */
@@ -4604,21 +4606,16 @@ html[data-ambient="reduced"] .bg-dust { display: none !important; }
   .skeleton-row { animation: none; }
 }
 
-/* 引导式空状态：虚线容器 + 新芽图标圆片，替代纯文本一行（沿用 board-empty 的构图语言） */
-.fh-empty,
-.list-empty,
-.fridge-empty,
-.food-empty {
+/* 引导式空状态：虚线容器 + 新芽图标圆片，替代纯文本一行（沿用 board-empty 的构图语言）
+   仅用于整页级空列表（.empty-guide 显式挂载）；窄栏/小分区（收藏弹窗、冰箱分区等）保持纯文本 */
+.empty-guide {
   padding: 26px 18px 30px;
   border: 1px dashed var(--line);
   border-radius: var(--radius-md);
   background: linear-gradient(180deg, rgba(47, 158, 110, 0.04), transparent 70%);
   line-height: 1.65;
 }
-.fh-empty::before,
-.list-empty::before,
-.fridge-empty::before,
-.food-empty::before {
+.empty-guide::before {
   content: "";
   display: block;
   width: 42px;

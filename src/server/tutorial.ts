@@ -1,5 +1,6 @@
 import type { RecipeDB } from "../db/database";
 import { HEALTH_GUIDANCE_SKILL } from "../skills/health-guidance";
+import { extractJson } from "./json";
 
 /** 教学菜谱生成端点与主 Agent 共享同一份健康边界技能。 */
 export const TUTORIAL_SYSTEM_PROMPT = `你是为新手下厨者写教学菜谱的助手，语气耐心、步骤可执行。
@@ -57,26 +58,6 @@ export function buildTutorialUserPrompt(profile: TutorialProfile, dish: string, 
   }
   lines.push(`口味：「${p.taste_preference}」；忌口/过敏：「${p.allergies || "无"}」（绝对不能出现）。`);
   return lines.join("\n");
-}
-
-/** 从模型输出提取 JSON（容忍 markdown 代码块包裹）。 */
-function extractJson(raw: string): Record<string, unknown> | null {
-  const stripped = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
-  try {
-    const parsed = JSON.parse(stripped);
-    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
-  } catch {
-    const start = stripped.indexOf("{");
-    const end = stripped.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try {
-        return JSON.parse(stripped.slice(start, end + 1)) as Record<string, unknown>;
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }
 }
 
 const asString = (v: unknown): string => (typeof v === "string" ? v.trim() : "");

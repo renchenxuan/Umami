@@ -60,6 +60,11 @@ const PROVIDER_CONFIG: Record<ModelName, { settingsKey: string; envVars: string[
   custom: { settingsKey: "custom_api_key", envVars: ["CUSTOM_API_KEY"] },
 };
 
+/** settingsKey → provider 与其环境变量，供凭据懒加载反查。 */
+const PROVIDER_BY_SETTINGS_KEY: Record<string, { provider: ModelName; envVars: string[] }> = Object.fromEntries(
+  Object.entries(PROVIDER_CONFIG).map(([provider, entry]) => [entry.settingsKey, { provider: provider as ModelName, envVars: entry.envVars }]),
+);
+
 // 需要持久化/播种的所有设置项（key 字段 + 自定义端点字段）
 const SEEDS: Record<string, string> = {
   model_name: config.modelName,
@@ -72,6 +77,8 @@ const SEEDS: Record<string, string> = {
  */
 export class SettingsStore {
   private cache = new Map<string, string>();
+  /** 已加载过的凭据 settingsKey；未加载的凭据不会被 syncEnv 覆写成空值。 */
+  private loadedSecrets = new Set<string>();
 
   constructor(private db: RecipeDB, private secrets: SecretStore = createSecretStore()) {
     this.load();
@@ -84,45 +91,58 @@ export class SettingsStore {
       this.cache.set(key, value);
       if (dbVal === undefined) this.db.setSetting(key, value);
     }
-    for (const provider of ALL_MODELS) {
-      const { settingsKey, envVars } = PROVIDER_CONFIG[provider];
-      const legacy = this.db.getSetting(settingsKey) ?? "";
-      let stored = "";
-      let readFailed = false;
-      for (const name of envVars) {
-        try {
-          stored ||= this.secrets.get(name);
-        } catch (error) {
-          readFailed = true;
-          console.warn(`无法读取 ${settingsKey} 的安全凭据，SQLite 原值将保留：`, error instanceof Error ? error.message : "unknown error");
-        }
-      }
+    // 凭据不再逐个预读：Windows 上一次读取就是一次 PowerShell 进程派生，
+    // 启动阶段 9 个 provider + 3 个外部服务约 14 次派生，改为首次访问时加载。
+  }
 
-      let value = stored || legacy;
-      if (legacy && this.secrets.persistence !== "environment-only" && !readFailed) {
-        try {
-          if (stored && stored !== legacy) {
-            throw new Error("credential conflict");
-          }
-          if (!stored) {
-            const target = envVars[0]!;
-            this.secrets.set(target, legacy);
-            if (this.secrets.get(target) !== legacy) throw new Error("credential verification failed");
-            stored = legacy;
-            value = legacy;
-          }
-          // Delete only after the exact legacy value has been read back from durable storage.
-          if (stored !== legacy) throw new Error("credential verification failed");
-          this.db.deleteSecretSettingEverywhere(settingsKey);
-        } catch (error) {
-          console.warn(`无法安全迁移 ${settingsKey}，SQLite 原值已保留：`, error instanceof Error ? error.message : "unknown error");
-        }
+  /** 凭据懒加载入口：settingsKey 可能是 provider key 或外部服务 key。 */
+  private ensureSecretLoaded(settingsKey: string): void {
+    if (this.loadedSecrets.has(settingsKey)) return;
+    this.loadedSecrets.add(settingsKey);
+    const provider = PROVIDER_BY_SETTINGS_KEY[settingsKey];
+    if (provider) {
+      this.loadProviderSecret(settingsKey, provider.envVars);
+      return;
+    }
+    const service = EXTERNAL_SERVICES.find((s) => s.settingsKey === settingsKey);
+    if (service) this.loadExternalSecret(settingsKey, [service.envVar]);
+  }
+
+  /** provider 凭据加载：与「凭据管理器优先 + SQLite 旧值迁移」策略。 */
+  private loadProviderSecret(settingsKey: string, envVars: string[]): void {
+    const legacy = this.db.getSetting(settingsKey) ?? "";
+    let stored = "";
+    let readFailed = false;
+    for (const name of envVars) {
+      try {
+        stored ||= this.secrets.get(name);
+      } catch (error) {
+        readFailed = true;
+        console.warn(`无法读取 ${settingsKey} 的安全凭据，SQLite 原值将保留：`, error instanceof Error ? error.message : "unknown error");
       }
-      this.cache.set(settingsKey, value);
     }
-    for (const service of EXTERNAL_SERVICES) {
-      this.loadExternalSecret(service.settingsKey, [service.envVar]);
+
+    let value = stored || legacy;
+    if (legacy && this.secrets.persistence !== "environment-only" && !readFailed) {
+      try {
+        if (stored && stored !== legacy) {
+          throw new Error("credential conflict");
+        }
+        if (!stored) {
+          const target = envVars[0]!;
+          this.secrets.set(target, legacy);
+          if (this.secrets.get(target) !== legacy) throw new Error("credential verification failed");
+          stored = legacy;
+          value = legacy;
+        }
+        // Delete only after the exact legacy value has been read back from durable storage.
+        if (stored !== legacy) throw new Error("credential verification failed");
+        this.db.deleteSecretSettingEverywhere(settingsKey);
+      } catch (error) {
+        console.warn(`无法安全迁移 ${settingsKey}，SQLite 原值已保留：`, error instanceof Error ? error.message : "unknown error");
+      }
     }
+    this.cache.set(settingsKey, value);
     this.syncEnv();
   }
 
@@ -152,17 +172,21 @@ export class SettingsStore {
       }
     }
     this.cache.set(settingsKey, value);
+    this.syncEnv();
   }
 
+  /** 只同步已加载的凭据：未加载的若写成空字符串，会覆盖环境变量里原本提供的 key。 */
   private syncEnv(): void {
     for (const provider of ALL_MODELS) {
       const { settingsKey, envVars } = PROVIDER_CONFIG[provider];
+      if (!this.loadedSecrets.has(settingsKey)) continue;
       const value = this.cache.get(settingsKey) ?? "";
       for (const envVar of envVars) {
         process.env[envVar] = value;
       }
     }
     for (const service of EXTERNAL_SERVICES) {
+      if (!this.loadedSecrets.has(service.settingsKey)) continue;
       process.env[service.envVar] = this.cache.get(service.settingsKey) ?? "";
     }
   }
@@ -188,7 +212,9 @@ export class SettingsStore {
   }
 
   getKey(provider: ModelName): string {
-    return this.get(PROVIDER_CONFIG[provider].settingsKey);
+    const { settingsKey } = PROVIDER_CONFIG[provider];
+    this.ensureSecretLoaded(settingsKey);
+    return this.get(settingsKey);
   }
 
   setModelName(name: ModelName): void {
@@ -205,6 +231,7 @@ export class SettingsStore {
 
   setKey(provider: ModelName, key: string): void {
     const { settingsKey, envVars } = PROVIDER_CONFIG[provider];
+    this.loadedSecrets.add(settingsKey);
     const previous = new Map<string, string>();
     for (const envVar of envVars) previous.set(envVar, this.secrets.get(envVar));
     try {
@@ -237,12 +264,15 @@ export class SettingsStore {
 
   /** 外部服务密钥：空字符串表示未连接。 */
   getExternalServiceKey(id: string): string {
-    return this.get(externalServiceMeta(id).settingsKey);
+    const { settingsKey } = externalServiceMeta(id);
+    this.ensureSecretLoaded(settingsKey);
+    return this.get(settingsKey);
   }
 
   /** 保存/清除外部服务密钥（空字符串清除）。写失败回滚到原凭据，通过后清掉 SQLite 里的历史残留。 */
   setExternalServiceKey(id: string, key: string): void {
     const meta = externalServiceMeta(id);
+    this.loadedSecrets.add(meta.settingsKey);
     const previous = this.secrets.get(meta.envVar);
     try {
       if (key) this.secrets.set(meta.envVar, key);

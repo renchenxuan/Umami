@@ -6,7 +6,11 @@ import { broadcastServerEvent } from "./events";
 export interface SchedulerOptions {
   /** tick 间隔（毫秒），默认 20s；到期判定精确到分钟，间隔只影响触发延迟上限。 */
   intervalMs?: number;
+  /** 单次触发等待模型回复的上限（毫秒）；超时后放弃回复，但提醒已落库。 */
+  fireTimeoutMs?: number;
 }
+
+const DEFAULT_FIRE_TIMEOUT_MS = 60_000;
 
 /**
  * 定时任务调度器：扫描 schedules 表中到期任务，把提醒写入目标会话并让 Agent 回应，
@@ -14,6 +18,7 @@ export interface SchedulerOptions {
  * 避免模型回复期间被下一次 tick 重复触发。
  */
 export function startScheduler(db: RecipeDB, conversations: ConversationAgentManager, options: SchedulerOptions = {}): () => void {
+  const fireTimeoutMs = options.fireTimeoutMs ?? DEFAULT_FIRE_TIMEOUT_MS;
   let ticking = false;
   const tick = async () => {
     if (ticking) return;
@@ -36,11 +41,17 @@ export function startScheduler(db: RecipeDB, conversations: ConversationAgentMan
     db.markScheduleFired(schedule.id, new Date());
     const enabled = db.getSchedule(schedule.id)?.enabled;
     if (!enabled) console.log(`⏰ 定时任务「${schedule.title}」已完成全部触发，已自动停用。`);
+    // 模型调用没有自带上限：一次挂起会让 tick 与其后所有任务永久停摆，因此必须有硬超时。
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), fireTimeoutMs);
     try {
-      const result = await conversations.runScheduled(conversationId, { id: schedule.id, title: schedule.title, message: schedule.message });
-      if (result.modelError) console.warn(`⏰ 定时任务「${schedule.title}」：${result.modelError}`);
+      const result = await conversations.runScheduled(conversationId, { id: schedule.id, title: schedule.title, message: schedule.message }, { signal: controller.signal });
+      if (controller.signal.aborted) console.warn(`⏰ 定时任务「${schedule.title}」等待模型回复超过 ${fireTimeoutMs}ms，已放弃本次回复（提醒已记录）。`);
+      else if (result.modelError) console.warn(`⏰ 定时任务「${schedule.title}」：${result.modelError}`);
     } catch (error) {
       console.error(`⏰ 定时任务「${schedule.title}」执行失败：`, error);
+    } finally {
+      clearTimeout(timer);
     }
     broadcastServerEvent({ type: "schedule_fired", scheduleId: schedule.id, conversationId, title: schedule.title });
   };

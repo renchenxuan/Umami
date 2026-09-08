@@ -28,6 +28,19 @@ interface Runtime {
 
 type MessageBody = { text?: unknown; imageBase64?: unknown; mimeType?: unknown };
 
+/** 定时触发等待模型回复的上限被突破时，回填的 modelError（提醒本身已落库）。 */
+export const SCHEDULED_TIMEOUT_MESSAGE = "等待模型回复超时，已放弃本次回复（提醒已记录）";
+
+/** 常驻会话 runtime 上限；超限时淘汰最久未使用且空闲的会话（Map 为插入序，遍历即 LRU 近似）。 */
+export const MAX_RUNTIMES = 20;
+
+export interface ScheduledRunResult {
+  conversationId: number;
+  userMessageId: number;
+  assistantMessageId?: number;
+  modelError?: string;
+}
+
 function base64Payload(value: string): string {
   const comma = value.indexOf(",");
   return comma >= 0 && value.startsWith("data:") ? value.slice(comma + 1) : value;
@@ -58,9 +71,25 @@ export class ConversationAgentManager {
     private readonly factory: ConversationAgentFactory,
   ) {}
 
+  /** 丢弃一个会话的 runtime；正在流式输出的请求仍持有该对象引用，不会中断。 */
+  private dropRuntime(conversationId: number): void {
+    this.runtimes.delete(conversationId);
+  }
+
+  /** 淘汰最久未使用且空闲的 runtime，避免长跑时内存随会话数线性增长。 */
+  private evictIfNeeded(): void {
+    if (this.runtimes.size < MAX_RUNTIMES) return;
+    for (const [id, runtime] of this.runtimes) {
+      if (runtime.currentWriter || runtime.currentAbortToken) continue;
+      this.runtimes.delete(id);
+      if (this.runtimes.size < MAX_RUNTIMES) return;
+    }
+  }
+
   private runtime(conversationId: number, initialModel: Model<any>): Runtime {
     const existing = this.runtimes.get(conversationId);
     if (existing) return existing;
+    this.evictIfNeeded();
     const runtime: Runtime = { agent: null as unknown as Agent, chain: Promise.resolve(), currentWriter: null, currentAbortToken: null, apiKey: "" };
     runtime.agent = this.factory({
       conversationId,
@@ -173,8 +202,16 @@ export class ConversationAgentManager {
    * 定时任务触发：把提醒作为带 scheduled 标记的用户消息写入会话，
    * 若模型可用则让 Agent 生成一段回应并落库。与用户请求共用 runtime.chain 串行化，
    * 不会打断正在进行的对话；未配置模型时提醒消息仍然可见（本地优先）。
+   *
+   * 传入 signal 时：超时会中断 Agent 当前 run，并直接丢弃该会话的 runtime
+   * （下次访问重建），避免一次挂起的模型调用长期占用 runtime.chain，
+   * 连带阻塞该会话的后续对话与后续定时任务。
    */
-  async runScheduled(conversationId: number, schedule: { id: number; title: string; message: string }): Promise<{ conversationId: number; userMessageId: number; assistantMessageId?: number; modelError?: string }> {
+  async runScheduled(
+    conversationId: number,
+    schedule: { id: number; title: string; message: string },
+    options: { signal?: AbortSignal } = {},
+  ): Promise<ScheduledRunResult> {
     const content = `⏰ 定时任务「${schedule.title}」触发\n\n${schedule.message}`;
     const userMessageId = this.db.addMessage(conversationId, "user", content, { scheduled: true, scheduleId: schedule.id, scheduleTitle: schedule.title });
     const providerName = this.settings.getModelName();
@@ -184,14 +221,20 @@ export class ConversationAgentManager {
     if (!model || !apiKey) return { conversationId, userMessageId, modelError: `模型 "${providerName}" 未配置，已记录提醒但未生成回复` };
     const snapshot = { model, apiKey };
     const runtime = this.runtime(conversationId, snapshot.model);
-    const task = async (): Promise<{ conversationId: number; userMessageId: number; assistantMessageId?: number; modelError?: string }> => {
+    const signal = options.signal;
+    // Agent.prompt() 不接受 signal，只能借 agent.abort() 中断当前 run。
+    const onAbort = () => runtime.agent.abort();
+    signal?.addEventListener("abort", onAbort, { once: true });
+    const task = async (): Promise<ScheduledRunResult> => {
       runtime.apiKey = snapshot.apiKey;
       runtime.agent.state.model = snapshot.model;
       try {
+        if (signal?.aborted) return { conversationId, userMessageId, modelError: SCHEDULED_TIMEOUT_MESSAGE };
         const persisted = this.db.getMessages(conversationId, 40);
         runtime.agent.state.messages = restoreAgentMessages(persisted, snapshot.model);
         runtime.agent.state.thinkingLevel = this.settings.getThinkingLevel();
         await runtime.agent.prompt(content);
+        if (signal?.aborted) return { conversationId, userMessageId, modelError: SCHEDULED_TIMEOUT_MESSAGE };
         const error = runtime.agent.state.errorMessage;
         if (error) return { conversationId, userMessageId, modelError: safeProviderMessage(error, this.settings.getSecretValues()) };
         const assistant = [...runtime.agent.state.messages].reverse().find((message) => message.role === "assistant");
@@ -206,8 +249,23 @@ export class ConversationAgentManager {
         return { conversationId, userMessageId, assistantMessageId };
       } catch (error) {
         return { conversationId, userMessageId, modelError: safeProviderMessage(error, this.settings.getSecretValues()) };
+      } finally {
+        signal?.removeEventListener("abort", onAbort);
       }
     };
-    return runtime.chain.then(task, task);
+    const result = runtime.chain.then(task, task);
+    if (!signal) return result;
+    // 即使 agent.abort() 没能真正解开挂起的调用，也要在超时那一刻放弃等待：
+    // 丢弃 runtime 让下次访问重建，保证该会话不会被一条挂起的链永久占住。
+    const timedOut = new Promise<ScheduledRunResult>((resolve) => {
+      const finish = () => {
+        signal.removeEventListener("abort", onAbort);
+        this.dropRuntime(conversationId);
+        resolve({ conversationId, userMessageId, modelError: SCHEDULED_TIMEOUT_MESSAGE });
+      };
+      if (signal.aborted) finish();
+      else signal.addEventListener("abort", finish, { once: true });
+    });
+    return Promise.race([result, timedOut]);
   }
 }

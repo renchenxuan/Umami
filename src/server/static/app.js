@@ -632,6 +632,37 @@ function renderMarkdownFallback(text) {
   return out.join('');
 }
 
+/**
+ * 渲染出口净化：escapeHtml 只挡住了 < >，挡不住 marked 生成的属性与链接。
+ * 用 DOMParser 解析后剥离 on* 事件属性与 javascript:/data: 等可执行 URL，
+ * 再取 innerHTML —— 对 marked 与内置渲染两个出口同时生效。
+ */
+const SAFE_URL_PATTERN = /^(?:https?:|mailto:|#|\/)/i;
+function sanitizeRenderedHtml(html) {
+  if (!html || html.indexOf("<") === -1) return html;
+  let root;
+  try {
+    const doc = new DOMParser().parseFromString('<div id="md-root">' + html + "</div>", "text/html");
+    root = doc.getElementById("md-root");
+  } catch (e) {
+    return "";
+  }
+  if (!root) return "";
+  const elements = root.querySelectorAll("*");
+  for (const el of elements) {
+    const attrs = el.attributes;
+    for (let i = attrs.length - 1; i >= 0; i--) {
+      const name = attrs[i].name.toLowerCase();
+      const value = (attrs[i].value || "").trim();
+      const isUrl = name === "href" || name === "src";
+      if (name.indexOf("on") === 0 || (isUrl && !SAFE_URL_PATTERN.test(value))) {
+        el.removeAttribute(attrs[i].name);
+      }
+    }
+  }
+  return root.innerHTML;
+}
+
 // 优先使用 marked（支持表格 / 代码块 / 有序列表 / 链接），并对输入做 HTML 转义以防 XSS；
 // 当 marked 未加载或解析失败时回退到内置轻量渲染。
 function renderMarkdownToHtml(text) {
@@ -639,10 +670,10 @@ function renderMarkdownToHtml(text) {
   if (typeof marked !== "undefined") {
     try {
       const escaped = escapeHtml(text);
-      return marked.parse(escaped, { gfm: true, breaks: true });
+      return sanitizeRenderedHtml(marked.parse(escaped, { gfm: true, breaks: true }));
     } catch (e) { /* 回退到内置渲染 */ }
   }
-  return renderMarkdownFallback(text);
+  return sanitizeRenderedHtml(renderMarkdownFallback(text));
 }
 
 function handleEvent(evt, bubble) {
@@ -1470,19 +1501,30 @@ function makeDraggable(cardEl, key) {
     const startY = e.clientY;
     const origLeft = cardEl.offsetLeft;
     const origTop = cardEl.offsetTop;
-    cardEl.classList.add("dragging");
+    // 拖拽阈值：阈值内视为误触（点按抖动），卡片不动也不保存位置，
+    // 避免「随手一碰卡片就拖着跑」且被永久持久化
+    const DRAG_THRESHOLD = 5;
+    let dragging = false;
     cardEl.setPointerCapture(e.pointerId);
 
-    // 拖拽 1:1 跟手，松手即落位——不做惯性/反弹/倾斜（按设计取向：视觉质感优先于体感特效）
+    // 超过阈值后 1:1 跟手，松手即落位——不做惯性/反弹/倾斜（按设计取向：视觉质感优先于体感特效）
     const onMove = (ev) => {
-      cardEl.style.left = (origLeft + ev.clientX - startX) + "px";
-      cardEl.style.top = (origTop + ev.clientY - startY) + "px";
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (!dragging) {
+        if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+        dragging = true;
+        cardEl.classList.add("dragging");
+      }
+      cardEl.style.left = (origLeft + dx) + "px";
+      cardEl.style.top = (origTop + dy) + "px";
     };
 
     const onUp = () => {
       cardEl.removeEventListener("pointermove", onMove);
       cardEl.removeEventListener("pointerup", onUp);
       cardEl.removeEventListener("pointercancel", onUp);
+      if (!dragging) return;
       const host = boardInner || boardCanvas;
       const maxX = Math.max(0, host.clientWidth - cardEl.offsetWidth);
       const maxY = Math.max(0, host.clientHeight - cardEl.offsetHeight);

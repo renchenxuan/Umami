@@ -75,11 +75,26 @@ switch ([string]$inputValue.operation) {
 export class WindowsCredentialSecretStore implements SecretStore {
   readonly persistence = "windows-credential-manager" as const;
 
+  /**
+   * 只透传 PowerShell 启动所需的最小环境变量：process.env 里另有 syncEnv() 写入的
+   * 全部 provider API Key，默认继承会把它们一并暴露给子进程。
+   */
+  private childEnv(): NodeJS.ProcessEnv {
+    return {
+      SystemRoot: process.env.SystemRoot ?? "C:\\Windows",
+      PATH: process.env.PATH ?? "",
+      COMSPEC: process.env.COMSPEC ?? "",
+      USERPROFILE: process.env.USERPROFILE ?? "",
+      APPDATA: process.env.APPDATA ?? "",
+      LOCALAPPDATA: process.env.LOCALAPPDATA ?? "",
+    };
+  }
+
   private run(operation: "get" | "set" | "delete", name: string, value?: string): string {
     const result = spawnSync(
       "powershell.exe",
       ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", CREDENTIAL_SCRIPT],
-      { input: JSON.stringify({ operation, name, value }), encoding: "utf8", windowsHide: true, maxBuffer: 1024 * 1024 },
+      { input: JSON.stringify({ operation, name, value }), encoding: "utf8", windowsHide: true, maxBuffer: 1024 * 1024, env: this.childEnv() },
     );
     if (result.error) throw result.error;
     if (result.status !== 0) throw new Error((result.stderr || "Windows Credential Manager operation failed").trim());

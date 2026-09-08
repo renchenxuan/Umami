@@ -1,5 +1,6 @@
 import type { RecipeDB } from "../db/database";
 import { HEALTH_GUIDANCE_SKILL } from "../skills/health-guidance";
+import { extractJson } from "./json";
 
 /** 推荐端点与主 Agent 共享同一份健康边界技能。 */
 export const RECOMMENDATION_SYSTEM_PROMPT = `你是为繁忙久坐人群提供通用健康信息的助手。请给出贴合生活节奏的饮食与运动建议：食谱快手、易采购；运动时间高效、适合办公室或家里完成。
@@ -54,26 +55,6 @@ export function buildRecommendationUserPrompt(profile: RecommendationProfile): s
   lines.push(`偏好：${p.people_count} 人，口味「${p.taste_preference}」，菜系「${p.cuisine_style}」，忌口「${p.allergies || "无"}」`);
   lines.push("请输出 JSON（daily / weekly / workout / note 四个字段）。");
   return lines.join("\n");
-}
-
-/** 从模型输出提取 JSON（容忍 markdown 代码块包裹）。 */
-function extractJson(raw: string): Record<string, unknown> | null {
-  const stripped = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
-  try {
-    const parsed = JSON.parse(stripped);
-    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
-  } catch {
-    const start = stripped.indexOf("{");
-    const end = stripped.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try {
-        return JSON.parse(stripped.slice(start, end + 1)) as Record<string, unknown>;
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }
 }
 
 export interface RecommendationItem {

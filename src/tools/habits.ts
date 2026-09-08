@@ -18,8 +18,8 @@ export function createHabitTools(db: RecipeDB): AgentTool<any>[] {
       parameters: LogHabitSchema,
       execute: async (_id, params) => {
         const p = params as Static<typeof LogHabitSchema>;
-        db.addHabit(p.date ?? todayISO(), p.habit, p.value);
-        return { content: [text(`已记录「${p.habit}」：${p.value}`)], details: p };
+        const id = db.addHabit(p.date ?? todayISO(), p.habit, p.value);
+        return { content: [text(`已记录「${p.habit}」：${p.value}`)], details: { ...p, id } };
       },
     },
     {

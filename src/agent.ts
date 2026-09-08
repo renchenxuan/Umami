@@ -36,6 +36,7 @@ export function createAgent(
     restoredMessages?: Message[];
     getApiKey?: (provider: string) => string | undefined;
     onProposal?: (proposal: AgentActionProposal) => void;
+    onCommit?: (action: AgentActionProposal) => void;
     /** 启用的技能 id 列表；省略时启用全部（保持原有行为）。 */
     enabledSkillIds?: string[];
     /** 会话亲和 id：转发给支持缓存的 provider，提升多轮对话的缓存命中。 */

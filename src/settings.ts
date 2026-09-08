@@ -2,6 +2,11 @@ import { config, unsafeCustomEndpointsEnabled, type ModelName } from "./config";
 import type { RecipeDB } from "./db/database";
 import { createSecretStore, type SecretStore } from "./secrets";
 import { DEFAULT_ENABLED_SKILL_IDS } from "./skills";
+import { AI_DATA_POLICIES } from "./ai-data-policy";
+
+export type AiConsentVersion = "v1";
+export interface AiConsent { granted: boolean; grantedAt: string | null; version: AiConsentVersion }
+export const AI_CONSENT_VERSION: AiConsentVersion = "v1";
 
 export const ALL_MODELS: ModelName[] = [
   "openai",
@@ -70,6 +75,9 @@ const SEEDS: Record<string, string> = {
   model_name: config.modelName,
   custom_base_url: config.customBaseUrl,
   custom_model: config.customModel,
+  ai_data_consent: "",
+  ai_data_consent_at: "",
+  ai_data_consent_version: AI_CONSENT_VERSION,
 };
 
 /**
@@ -194,6 +202,21 @@ export class SettingsStore {
     return this.cache.get(key) ?? "";
   }
 
+  getAiConsent(): AiConsent {
+    return {
+      granted: this.get("ai_data_consent") === "granted",
+      grantedAt: this.get("ai_data_consent_at") || null,
+      version: AI_CONSENT_VERSION,
+    };
+  }
+
+  setAiConsent(granted: boolean): AiConsent {
+    this.set("ai_data_consent", granted ? "granted" : "revoked");
+    this.set("ai_data_consent_at", granted ? new Date().toISOString() : "");
+    this.set("ai_data_consent_version", AI_CONSENT_VERSION);
+    return this.getAiConsent();
+  }
+
   set(key: string, value: string): void {
     if (
       Object.values(PROVIDER_CONFIG).some((entry) => entry.settingsKey === key) ||
@@ -209,6 +232,13 @@ export class SettingsStore {
   getModelName(): ModelName {
     const v = this.get("model_name");
     return (ALL_MODELS as string[]).includes(v) ? (v as ModelName) : "openai";
+  }
+
+  /** 只查询当前模型是否已配置，不读取 SecretStore，也不触发旧密钥迁移。 */
+  isModelConfigured(provider: ModelName): boolean {
+    const { settingsKey, envVars } = PROVIDER_CONFIG[provider];
+    if (this.cache.has(settingsKey)) return Boolean(this.cache.get(settingsKey));
+    return envVars.some((envVar) => Boolean(process.env[envVar]));
   }
 
   getKey(provider: ModelName): string {
@@ -348,6 +378,8 @@ export class SettingsStore {
       modelConfigured: !!this.getKey(this.getModelName()),
       uiTheme: this.get("ui_theme") || "aurora",
       thinkingLevel: this.getThinkingLevel(),
+      aiConsent: this.getAiConsent(),
+      aiDataPolicies: AI_DATA_POLICIES,
       externalServices: {
         maps: EXTERNAL_SERVICES.map((s) => ({ id: s.id, name: s.name, hasKey: !!this.getExternalServiceKey(s.id), applyUrl: s.applyUrl, note: s.note })),
         defaultMapProvider: this.getMapProvider() || null,

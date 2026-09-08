@@ -23,6 +23,21 @@ export type AgentActionStatus="pending"|"confirmed"|"cancelled"|"undone";
 export interface AgentActionProposal { id:number; conversation_id:number|null; action_type:string; payload:unknown; status:AgentActionStatus; result:unknown; undo_payload:unknown; undo_available:boolean; created_at:string; updated_at:string }
 export type ScheduleType="daily"|"weekly"|"once";
 export interface Schedule { id:number; conversation_id:number; title:string; message:string; schedule_type:ScheduleType; time_of_day:string; weekdays:number[]|null; fire_date:string|null; enabled:number; last_fired_at:string|null; next_fire_at:string|null; created_at:string; updated_at:string }
+export interface ExportBundle { exportVersion:1; schemaVersion:number; exportedAt:string; data:Record<string,unknown>; clientState:{boardPositions:Record<string,unknown>;hiddenCards:Record<string,unknown>;theme:string} }
+
+const IMPORT_COLLECTIONS=["ingredients","dietLogs","workouts","bodyMetrics","goals","habits","recipes","favorites","recipeHistory","shoppingItems","conversations","messages","agentActions","schedules"] as const;
+const isRecord=(value:unknown):value is Record<string,unknown>=>!!value&&typeof value==="object"&&!Array.isArray(value);
+function normalizeImportBundle(value:unknown):ExportBundle {
+  if(!isRecord(value))throw new RangeError("导入包必须是 JSON 对象");
+  const data=isRecord(value.data)?value.data:value;
+  if(value.exportVersion!==undefined&&value.exportVersion!==1)throw new RangeError("不支持的导出包版本");
+  if(value.schemaVersion!==undefined&&Number(value.schemaVersion)>LATEST_SCHEMA_VERSION)throw new RangeError("导出包来自更新的数据库版本");
+  for(const key of IMPORT_COLLECTIONS)if(!Array.isArray(data[key]))throw new RangeError(`导入包缺少 ${key} 数据`);
+  if(!isRecord(data.preferences)||!isRecord(data.fridgeSettings))throw new RangeError("导入包缺少设置数据");
+  if(isRecord(value.clientState)&&Object.keys(value.clientState).some((key)=>!["boardPositions","hiddenCards","theme"].includes(key)))throw new RangeError("客户端状态包含不支持的字段");
+  const clientState=isRecord(value.clientState)?value.clientState:{};
+  return {exportVersion:1,schemaVersion:Number(value.schemaVersion??LATEST_SCHEMA_VERSION),exportedAt:String(value.exportedAt??new Date().toISOString()),data,clientState:{boardPositions:isRecord(clientState.boardPositions)?clientState.boardPositions:{},hiddenCards:isRecord(clientState.hiddenCards)?clientState.hiddenCards:{},theme:typeof clientState.theme==="string"?clientState.theme:"dark"}};
+}
 
 type PatchValue = string|number|null|undefined;
 export const SECRET_SETTING_KEYS = ["openai_api_key","google_api_key","deepseek_api_key","moonshot_api_key","minimax_api_key","anthropic_api_key","dashscope_api_key","zhipu_api_key","custom_api_key","baidu_map_ak","amap_map_ak","google_maps_api_key"];
@@ -119,6 +134,8 @@ export class RecipeDB {
     writeFileSync(target,this.db.serialize(),{flag:"wx"});
     return target;
   }
+  /** Create a point-in-time recovery copy before a destructive import. */
+  backupNow(){return this.databasePath?this.backup(this.databasePath):null}
   private currentMigrationVersion(){
     const hasTable=!!this.db.query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_migrations'").get();
     if(!hasTable)return 0;
@@ -269,23 +286,31 @@ export class RecipeDB {
   getFavorites(){return (this.db.query("SELECT * FROM favorites ORDER BY created_at DESC").all() as Array<Record<string,unknown>>).map(r=>({...r,ingredients:parseJson(r.ingredients),steps:parseJson(r.steps)}) as unknown as Favorite)}
   getFavorite(id:number){const r=this.db.query("SELECT * FROM favorites WHERE id=?").get(id) as Record<string,unknown>|null;return r?{...r,ingredients:parseJson(r.ingredients),steps:parseJson(r.steps)} as unknown as Favorite:null}
   deleteFavorite(id:number){this.db.query("DELETE FROM favorites WHERE id=?").run(id)}
-  /** 聚合导出用户全部健康数据（仅读取，供数据导出端点使用）。 */
+  /** 聚合导出可恢复健康数据包；只读取业务数据，不读取任何密钥。 */
   getExportBundle(){
     return {
+      exportVersion:1,
       exportedAt:new Date().toISOString(),
       schemaVersion:this.getMigrationVersion(),
-      preferences:this.getPreferences(),
-      ingredients:this.getIngredients(),
-      favorites:this.getFavorites(),
-      recipeHistory:this.getRecipeHistory(),
-      recipes:this.getRecipes(),
-      workouts:this.getWorkouts(),
-      bodyMetrics:this.getBodyMetrics(),
-      goals:this.getGoals(),
-      habits:this.getHabits(),
-      dietLogs:this.getDietLogs(),
-      shoppingItems:this.getShoppingItems(),
-      conversations:this.getConversations(),
+      data:{
+        preferences:this.getPreferences(),
+        fridgeSettings:this.getFridgeSettings(),
+        ingredients:this.getIngredients(),
+        dietLogs:this.getDietLogs(),
+        workouts:this.getWorkouts(),
+        bodyMetrics:this.getBodyMetrics(),
+        goals:this.getGoals(),
+        habits:this.getHabits(),
+        recipes:this.getRecipes(),
+        favorites:this.getFavorites(),
+        recipeHistory:this.getRecipeHistory(),
+        shoppingItems:this.getShoppingItems(),
+        conversations:this.getAllConversations(),
+        messages:this.getAllMessages(),
+        agentActions:this.getAgentActions(),
+        schedules:this.getSchedules(),
+      },
+      clientState:{boardPositions:{},hiddenCards:{},theme:"dark"},
     };
   }
 
@@ -387,11 +412,16 @@ export class RecipeDB {
     const rows=this.db.query(`SELECT c.*, (SELECT substr(m.content,1,60) FROM messages m WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) AS last_message FROM conversations c WHERE c.archived_at IS NULL ORDER BY c.updated_at DESC,c.id DESC`).all() as Array<Record<string,unknown>>;
     return rows.map(r=>this.conversation(r));
   }
+  getAllConversations(){
+    const rows=this.db.query(`SELECT c.*, (SELECT substr(m.content,1,60) FROM messages m WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) AS last_message FROM conversations c ORDER BY c.updated_at DESC,c.id DESC`).all() as Array<Record<string,unknown>>;
+    return rows.map(r=>this.conversation(r));
+  }
   getConversation(id:number){const r=this.one("conversations",id);return r?this.conversation(r):null}
   archiveConversation(id:number){return this.archive("conversations",id)}
   renameConversation(id:number,title:string){requireText("title",title,120);return this.patch("conversations",id,{title},["title"])}
   addMessage(conversationId:number,role:Message["role"],content:string,metadata:unknown={}){const id=Number(this.db.query("INSERT INTO messages(conversation_id,role,content,metadata) VALUES(?,?,?,?)").run(conversationId,role,content,JSON.stringify(metadata)).lastInsertRowid);this.db.query("UPDATE conversations SET updated_at=CURRENT_TIMESTAMP WHERE id=?").run(conversationId);return id}
   getMessages(conversationId:number,limit=100,beforeId?:number){const rows=beforeId?this.db.query("SELECT * FROM messages WHERE conversation_id=? AND id<? ORDER BY id DESC LIMIT ?").all(conversationId,beforeId,limit):this.db.query("SELECT * FROM messages WHERE conversation_id=? ORDER BY id DESC LIMIT ?").all(conversationId,limit);return(rows as Array<Record<string,unknown>>).reverse().map(r=>({...r,metadata:parseJson(r.metadata)}) as unknown as Message)}
+  getAllMessages(){return (this.db.query("SELECT * FROM messages ORDER BY id").all() as Array<Record<string,unknown>>).map(r=>({...r,metadata:parseJson(r.metadata)}) as unknown as Message)}
   getOrCreateLegacyConversation(){
     const existing=this.db.query("SELECT id FROM conversations WHERE archived_at IS NULL AND json_extract(context,'$.legacy')=1 ORDER BY id LIMIT 1").get() as {id:number}|null;
     return existing?.id??this.createConversation("兼容聊天",{legacy:true});
@@ -438,6 +468,10 @@ export class RecipeDB {
   private action(r:Record<string,unknown>):AgentActionProposal{return{...r,payload:parseJson(r.payload),result:parseJson(r.result),undo_payload:parseJson(r.undo_payload),undo_available:Boolean(r.undo_available)} as unknown as AgentActionProposal}
   createAgentAction(conversationId:number|null,actionType:string,payload:unknown){
     const id=Number(this.db.query("INSERT INTO agent_actions(conversation_id,action_type,payload) VALUES(?,?,?)").run(conversationId,actionType,JSON.stringify(payload??{})).lastInsertRowid);
+    return this.getAgentAction(id)!;
+  }
+  recordCommittedAgentAction(conversationId:number|null,actionType:string,payload:unknown,result:unknown,undoPayload:unknown,undoAvailable:boolean){
+    const id=Number(this.db.query("INSERT INTO agent_actions(conversation_id,action_type,payload,status,result,undo_payload,undo_available) VALUES(?,?,?,'confirmed',?,?,?)").run(conversationId,actionType,JSON.stringify(payload??{}),JSON.stringify(result??null),JSON.stringify(undoPayload??null),undoAvailable?1:0).lastInsertRowid);
     return this.getAgentAction(id)!;
   }
   getAgentAction(id:number){const r=this.db.query("SELECT * FROM agent_actions WHERE id=?").get(id) as Record<string,unknown>|null;return r?this.action(r):null}
@@ -530,6 +564,7 @@ export class RecipeDB {
     if(type==="clear_ingredients"){for(const itemId of Array.isArray(undo.ids)?undo.ids.map(Number):[])this.unarchive("ingredients",itemId);return}
     if(type==="save_favorite"){this.deleteFavorite(id);return}
     if(type==="save_recipe_history"){this.db.query("DELETE FROM recipe_history WHERE id=?").run(id);return}
+    if(type==="save_tutorial"){this.archiveRecipe(id);return}
     if(type==="update_preferences"){this.updatePreferences(undo as unknown as Preferences);return}
     if(type==="log_workout"){this.archiveWorkout(id);return}
     if(type==="log_body_metric"){this.archiveBodyMetric(id);return}
@@ -545,6 +580,66 @@ export class RecipeDB {
       return;
     }
     throw new RangeError("该操作不可撤销");
+  }
+
+  previewImport(value:unknown){
+    const bundle=normalizeImportBundle(value);
+    const data=bundle.data as Record<string,any>;
+    const tables:{key:keyof typeof data;table:string}[]=[
+      {key:"ingredients",table:"ingredients"},{key:"dietLogs",table:"diet_logs"},{key:"workouts",table:"workout_logs"},{key:"bodyMetrics",table:"body_metrics"},{key:"goals",table:"health_goals"},{key:"habits",table:"habit_logs"},{key:"recipes",table:"recipes"},{key:"favorites",table:"favorites"},{key:"recipeHistory",table:"recipe_history"},{key:"shoppingItems",table:"shopping_items"},{key:"conversations",table:"conversations"},{key:"messages",table:"messages"},{key:"agentActions",table:"agent_actions"},{key:"schedules",table:"schedules"},
+    ];
+    const counts:Record<string,{incoming:number;conflicts:number}>={};
+    for(const entry of tables){const rows=Array.isArray(data[entry.key])?data[entry.key]:[];let conflicts=0;for(const row of rows){const id=Number(row?.id);if(Number.isSafeInteger(id)&&id>0&&this.db.query(`SELECT 1 FROM ${entry.table} WHERE id=?`).get(id))conflicts++;}counts[entry.key]={incoming:rows.length,conflicts};}
+    return {valid:true,exportVersion:bundle.exportVersion,schemaVersion:bundle.schemaVersion,counts,settings:{preferencesConflict:!this.preferencesLookDefault(),fridgeSettingsConflict:!!this.getSetting("fridge_settings")}};
+  }
+
+  private preferencesLookDefault(){
+    const p=this.getPreferences();
+    return p.people_count===2&&p.taste_preference==="家常"&&!p.allergies&&p.cuisine_style==="中餐"&&p.days===7&&p.height_cm===null&&p.age===null&&!p.gender&&p.activity_level==="久坐"&&p.calorie_target===null;
+  }
+  private hasId(table:string,id:unknown){const n=Number(id);return Number.isSafeInteger(n)&&n>0&&!!this.db.query(`SELECT 1 FROM ${table} WHERE id=?`).get(n)}
+  private insertImport(table:string,row:Record<string,any>,columns:string[],jsonColumns:Set<string>=new Set(),explicitId=true){
+    const source=explicitId&&Number.isSafeInteger(Number(row.id))&&Number(row.id)>0?{...row}:row;
+    const names=columns.filter((column)=>source[column]!==undefined);
+    const values=names.map((column)=>jsonColumns.has(column)?JSON.stringify(source[column]??null):source[column]??null);
+    const placeholders=names.map(()=>"?").join(",");
+    return Number(this.db.query(`INSERT INTO ${table}(${names.join(",")}) VALUES(${placeholders})`).run(...values).lastInsertRowid);
+  }
+  private importId(table:string,row:Record<string,any>,columns:string[],jsonColumns:Set<string>=new Set()){
+    const sourceId=Number(row.id);if(Number.isSafeInteger(sourceId)&&sourceId>0&&!this.hasId(table,sourceId))return this.insertImport(table,row,["id",...columns],jsonColumns);
+    return this.insertImport(table,row,columns,jsonColumns,false);
+  }
+
+  importBundle(value:unknown){
+    const bundle=normalizeImportBundle(value);const data=bundle.data as Record<string,any>;const conflicts=this.previewImport(bundle).counts as Record<string,{incoming:number;conflicts:number}>;
+    return this.db.transaction(()=>{
+      const preferencesApplied=this.preferencesLookDefault();
+      const fridgeSettingsApplied=!this.getSetting("fridge_settings");
+      if(preferencesApplied){
+        const p=data.preferences as Record<string,any>;
+        this.updatePreferences({people_count:Number(p.people_count),taste_preference:String(p.taste_preference??"家常"),allergies:String(p.allergies??""),cuisine_style:String(p.cuisine_style??"中餐"),days:Number(p.days??7),height_cm:p.height_cm==null?null:Number(p.height_cm),age:p.age==null?null:Number(p.age),gender:String(p.gender??""),activity_level:String(p.activity_level??"久坐"),calorie_target:p.calorie_target==null?null:Number(p.calorie_target)});
+      }
+      if(fridgeSettingsApplied)this.setFridgeSettings(data.fridgeSettings as FridgeSettings);
+      const maps={history:new Map<number,number>(),conversations:new Map<number,number>(),schedules:new Map<number,number>(),ingredients:new Map<number,number>(),dietLogs:new Map<number,number>(),workouts:new Map<number,number>(),bodyMetrics:new Map<number,number>(),goals:new Map<number,number>(),habits:new Map<number,number>(),recipes:new Map<number,number>(),favorites:new Map<number,number>()};
+      const added:Record<string,number>={};
+      const add=(key:string,fn:(row:Record<string,any>)=>number)=>{added[key]=0;for(const row of (data[key] as any[])){fn(row);added[key]++;}};
+      add("recipeHistory",(r)=>{const id=this.importId("recipe_history",r,["title","model_used","week_plan","created_at"],new Set(["week_plan"]));maps.history.set(Number(r.id),id);return id;});
+      add("conversations",(r)=>{const id=this.importId("conversations",r,["title","context","created_at","updated_at","archived_at"],new Set(["context"]));maps.conversations.set(Number(r.id),id);return id;});
+      add("ingredients",(r)=>{const id=this.importId("ingredients",r,["name","quantity","category","source","zone","added_at","note","created_at","updated_at","archived_at"]);maps.ingredients.set(Number(r.id),id);return id;});
+      add("dietLogs",(r)=>{const id=this.importId("diet_logs",r,["date","meal_type","foods","note","total_kcal","created_at","updated_at","archived_at"],new Set(["foods"]));maps.dietLogs.set(Number(r.id),id);return id;});
+      add("workouts",(r)=>{const id=this.importId("workout_logs",r,["date","activity_type","duration_min","detail","created_at","updated_at","archived_at"]);maps.workouts.set(Number(r.id),id);return id;});
+      add("bodyMetrics",(r)=>{const id=this.importId("body_metrics",r,["date","weight_kg","body_fat_pct","note","created_at","updated_at","archived_at"]);maps.bodyMetrics.set(Number(r.id),id);return id;});
+      add("goals",(r)=>{const id=this.importId("health_goals",r,["name","category","target","unit","status","target_value","current_value","start_date","end_date","created_at","updated_at","archived_at"]);maps.goals.set(Number(r.id),id);return id;});
+      add("habits",(r)=>{const id=this.importId("habit_logs",r,["date","habit","value","created_at","updated_at","archived_at"]);maps.habits.set(Number(r.id),id);return id;});
+      add("recipes",(r)=>{const copy={...r,legacy_history_id:maps.history.get(Number(r.legacy_history_id))??null};const id=this.importId("recipes",copy,["title","ingredients","steps","nutrition_estimate","source","legacy_history_id","created_at","updated_at","archived_at"],new Set(["ingredients","steps","nutrition_estimate"]));maps.recipes.set(Number(r.id),id);return id;});
+      add("favorites",(r)=>{const id=this.importId("favorites",r,["recipe_name","ingredients","steps","created_at"],new Set(["ingredients","steps"]));maps.favorites.set(Number(r.id),id);return id;});
+      add("shoppingItems",(r)=>this.importId("shopping_items",r,["name","quantity","checked","created_at","updated_at","archived_at"]));
+      add("messages",(r)=>{const copy={...r,conversation_id:maps.conversations.get(Number(r.conversation_id))};if(!copy.conversation_id)throw new RangeError("消息引用的会话不存在");return this.importId("messages",copy,["conversation_id","role","content","metadata","created_at"],new Set(["metadata"]));});
+      add("schedules",(r)=>{const conversationId=maps.conversations.get(Number(r.conversation_id));if(!conversationId)throw new RangeError("定时任务引用的会话不存在");const id=this.importId("schedules",{...r,conversation_id:conversationId},["conversation_id","title","message","schedule_type","time_of_day","weekdays","fire_date","enabled","last_fired_at","next_fire_at","created_at","updated_at"],new Set(["weekdays"]));maps.schedules.set(Number(r.id),id);return id;});
+      add("agentActions",(r)=>{const byType:Record<string,Map<number,number>>={save_ingredients:maps.ingredients,save_favorite:maps.favorites,save_recipe_history:maps.history,save_tutorial:maps.recipes,log_workout:maps.workouts,log_body_metric:maps.bodyMetrics,set_goal:maps.goals,update_goal_status:maps.goals,log_habit:maps.habits,log_diet:maps.dietLogs,delete_schedule:maps.schedules};const idMap=byType[String(r.action_type)];const remap=(value:unknown):unknown=>{if(Array.isArray(value))return value.map(remap);if(!isRecord(value))return value;const copy={...value};if(copy.id!==undefined&&idMap?.has(Number(copy.id)))copy.id=idMap.get(Number(copy.id));if(Array.isArray(copy.ids))copy.ids=copy.ids.map((id:number)=>idMap?.get(Number(id))??id);if(Array.isArray(copy.goals))copy.goals=copy.goals.map((goal:Record<string,unknown>)=>({...goal,id:idMap?.get(Number(goal.id))??goal.id}));return copy};const copy={...r,conversation_id:r.conversation_id==null?null:maps.conversations.get(Number(r.conversation_id))??null,payload:remap(parseJson(r.payload)),result:remap(parseJson(r.result)),undo_payload:remap(parseJson(r.undo_payload))};return this.importId("agent_actions",copy,["conversation_id","action_type","payload","status","result","undo_payload","undo_available","created_at","updated_at"],new Set(["payload","result","undo_payload"]));});
+      const conflictTotal=Object.values(conflicts).reduce((sum,item)=>sum+item.conflicts,0);
+      return {added,conflicts:Object.fromEntries(Object.entries(conflicts).map(([key,item])=>[key,item.conflicts])),conflictTotal,clientState:bundle.clientState,settingsRestored:{preferencesApplied,fridgeSettingsApplied}};
+    })();
   }
   searchFoods(query:string,category?:string){const q=query.trim();let sql="SELECT id,name,category,emoji,unit,kcal,protein,fat,carb FROM foods";const cond:string[]=[],params:string[]=[];if(q){cond.push("name LIKE ?");params.push(`%${q}%`);}if(category){cond.push("category=?");params.push(category);}if(cond.length)sql+=" WHERE "+cond.join(" AND ");sql+=" ORDER BY category,id LIMIT 500";return this.db.query(sql).all(...params) as Array<{id:number;name:string;category:string;emoji:string;unit:string;kcal:number|null;protein:number|null;fat:number|null;carb:number|null}>}
   getFoodCategories(){return FOOD_CATEGORIES}

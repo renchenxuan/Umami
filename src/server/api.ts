@@ -37,12 +37,13 @@ const goalStatus=(o:Record<string,unknown>)=>{const value=text(o,"status",{max:2
 
 // Large enough for one base64 encoded 5 MiB image plus JSON framing.
 export const MAX_JSON_BYTES=8*1024*1024;
+export const MAX_IMPORT_BYTES=32*1024*1024;
 export const MAX_IMAGE_BYTES=5*1024*1024;
 export const ALLOWED_IMAGE_TYPES=new Set(["image/jpeg","image/png","image/webp"]);
 
-export async function readJson(req:Request):Promise<Record<string,unknown>>{
-  const declared=Number(req.headers.get("content-length")??0);if(declared>MAX_JSON_BYTES)throw new Response("payload too large",{status:413});
-  const raw=await req.text();if(new TextEncoder().encode(raw).byteLength>MAX_JSON_BYTES)throw new Response("payload too large",{status:413});
+export async function readJson(req:Request,maxBytes=MAX_JSON_BYTES):Promise<Record<string,unknown>>{
+  const declared=Number(req.headers.get("content-length")??0);if(declared>maxBytes)throw new Response("payload too large",{status:413});
+  const raw=await req.text();if(new TextEncoder().encode(raw).byteLength>maxBytes)throw new Response("payload too large",{status:413});
   try{const value=JSON.parse(raw||"{}");if(!value||Array.isArray(value)||typeof value!=="object")throw new Error();return value as Record<string,unknown>}catch{throw new ValidationError("body","请求体必须是 JSON 对象")}
 }
 
@@ -130,7 +131,9 @@ export async function handleV1(req:Request,url:URL,db:RecipeDB):Promise<Response
     if(req.method==="GET"&&url.pathname==="/api/v1/food-categories")return success(db.getFoodCategories(),requestId);
     if(req.method==="GET"&&url.pathname==="/api/v1/recipe-history")return success(db.getRecipeHistory(),requestId);
     if(req.method==="GET"&&url.pathname==="/api/v1/diet-summary")return success(buildDietSummary(db),requestId);
-    if(req.method==="GET"&&url.pathname==="/api/v1/export"){const bundle=db.getExportBundle();return new Response(JSON.stringify({ok:true,data:bundle,requestId}),{headers:{"Content-Type":"application/json; charset=utf-8","Content-Disposition":`attachment; filename="health-data-${new Date().toISOString().slice(0,10)}.json"`}})}
+    if(req.method==="GET"&&url.pathname==="/api/v1/export"){const bundle=db.getExportBundle();return new Response(JSON.stringify({ok:true,data:bundle,requestId}),{headers:{"Content-Type":"application/json; charset=utf-8","Content-Disposition":`attachment; filename="umami-health-recovery-${new Date().toISOString().slice(0,10)}.json"`}})}
+    if(req.method==="POST"&&url.pathname==="/api/v1/import/preview"){const bundle=await readJson(req,MAX_IMPORT_BYTES);return success(db.previewImport(bundle),requestId)}
+    if(req.method==="POST"&&url.pathname==="/api/v1/import"){const bundle=await readJson(req,MAX_IMPORT_BYTES);const backupPath=db.backupNow();return success({...db.importBundle(bundle),backupPath},requestId)}
     if(url.pathname==="/api/v1/fridge-settings"){
       if(req.method==="GET")return success(db.getFridgeSettings(),requestId);
       if(req.method==="PUT"){const b=await readJson(req);const cur=db.getFridgeSettings();const clamp=(v:unknown,min:number,max:number,fallback:number)=>typeof v==="number"&&Number.isFinite(v)?Math.min(max,Math.max(min,v)):fallback;const freezerTemp=clamp(b.freezerTemp,-40,10,cur.freezerTemp);const fridgeTemp=clamp(b.fridgeTemp,-10,15,cur.fridgeTemp);db.setFridgeSettings({freezerTemp,fridgeTemp});return success(db.getFridgeSettings(),requestId)}

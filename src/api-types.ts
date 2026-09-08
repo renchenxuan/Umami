@@ -13,6 +13,17 @@ export type ApiResult<T> =
 
 export type AgentActionProposal = StoredAgentActionProposal;
 export type { Conversation, Message };
+export type { AiFeature, AiDataPolicy } from "./ai-data-policy";
+export type { AiConsent } from "./settings";
+export interface ImportPreview { valid: boolean; exportVersion: number; schemaVersion: number; counts: Record<string, { incoming: number; conflicts: number }>; settings: { preferencesConflict: boolean; fridgeSettingsConflict: boolean } }
+export interface ImportResult { added: Record<string, number>; conflicts: Record<string, number>; conflictTotal: number; clientState: { boardPositions: Record<string, unknown>; hiddenCards: Record<string, unknown>; theme: string }; settingsRestored: { preferencesApplied: boolean; fridgeSettingsApplied: boolean } }
+export interface TodayView {
+  date: string;
+  metrics: { dietKcal: number; calorieTarget: number | null; workoutMinutes: number; habitCompleted: number; latestWeight: number | null };
+  expiringIngredients: import("./db/database").Ingredient[];
+  recentActivity: Array<{ type: string; id: number; label: string; occurredAt: string }>;
+  ai: { configured: boolean; consentGranted: boolean };
+}
 
 export type SSEEvent =
   | { type: "start"; conversationId: number; messageId: number }

@@ -5,7 +5,7 @@ import { config, unsafeCustomEndpointsEnabled, type ModelName } from "../config"
 import type { RecipeDB } from "../db/database";
 import { ALL_MODELS, THINKING_LEVELS, EXTERNAL_SERVICE_IDS, type SettingsStore } from "../settings";
 import { buildTemporaryCustomModels, getModelByName, listModelCatalog, registerCustomProvider, type ModelsCollection } from "../models";
-import { handleV1, MAX_JSON_BYTES, validateCustomBaseUrl } from "./api";
+import { handleV1, MAX_IMPORT_BYTES, MAX_JSON_BYTES, validateCustomBaseUrl } from "./api";
 import { ConversationAgentManager, type ConversationAgentFactory } from "./conversations";
 import { subscribeServerEvents } from "./events";
 import { safeProviderMessage } from "./errors";
@@ -14,6 +14,7 @@ import { listSkillMeta } from "../skills";
 import { buildRecommendationProfile, buildRecommendationUserPrompt, parseRecommendations, RECOMMENDATION_SYSTEM_PROMPT } from "./recommendations";
 import { buildAnalysisProfile, buildAnalysisUserPrompt, parseAnalysis, ANALYSIS_SYSTEM_PROMPT, type AnalysisPeriod } from "./analysis";
 import { buildTutorialProfile, buildTutorialUserPrompt, parseTutorial, TUTORIAL_SYSTEM_PROMPT } from "./tutorial";
+import { buildTodayView } from "./today";
 
 const STATIC_DIR = resolve(import.meta.dir, "static");
 
@@ -99,7 +100,8 @@ export function startServer(
         return Response.json({ok:false,error:{code:localRequestError,message:localRequestError==="HOST_REJECTED"?"Host 必须是本机回环地址与当前端口":"Origin 必须是本机回环地址与当前端口",requestId:crypto.randomUUID()}},{status:403});
       }
       const declaredLength = Number(req.headers.get("content-length") ?? 0);
-      if (declaredLength > MAX_JSON_BYTES) {
+      const requestLimit = url.pathname === "/api/v1/import" || url.pathname === "/api/v1/import/preview" ? MAX_IMPORT_BYTES : MAX_JSON_BYTES;
+      if (declaredLength > requestLimit) {
         return Response.json({ ok: false, error: { code: "PAYLOAD_TOO_LARGE", message: "请求体过大", requestId: crypto.randomUUID() } }, { status: 413 });
       }
 
@@ -113,6 +115,21 @@ export function startServer(
       // v1 模型设置接口复用现有 provider 能力；key 仅保留在当前进程环境中。
       if (req.method === "GET" && url.pathname === "/api/v1/settings/model") {
         return Response.json({ ok: true, data: settings.overview(), requestId: crypto.randomUUID() });
+      }
+
+      if (req.method === "GET" && url.pathname === "/api/v1/settings/ai-consent") {
+        return Response.json({ ok: true, data: settings.getAiConsent(), requestId: crypto.randomUUID() });
+      }
+      if (req.method === "PUT" && url.pathname === "/api/v1/settings/ai-consent") {
+        const requestId = crypto.randomUUID();
+        try {
+          const body = await parseJson<{ granted?: unknown }>(req);
+          if (typeof body.granted !== "boolean") return Response.json({ ok: false, error: { code: "VALIDATION_ERROR", message: "granted 必须是布尔值", requestId } }, { status: 422 });
+          return Response.json({ ok: true, data: settings.setAiConsent(body.granted), requestId });
+        } catch { return Response.json({ ok: false, error: { code: "PAYLOAD_INVALID", message: "请求体无效", requestId } }, { status: 400 }); }
+      }
+      if (req.method === "GET" && url.pathname === "/api/v1/today") {
+        return Response.json({ ok: true, data: buildTodayView(db, settings.isModelConfigured(settings.getModelName()), settings.getAiConsent().granted), requestId: crypto.randomUUID() });
       }
 
       // 现有食材（首屏展示）
@@ -298,8 +315,9 @@ export function startServer(
         try {
           let consent: { privacyConsent?: boolean } = {};
           try { consent = await parseJson<{ privacyConsent?: boolean }>(req); } catch { /* 按未授权处理，避免读取健康数据 */ }
-          if (consent.privacyConsent !== true) {
-            return Response.json({ ok: false, error: { code: "PRIVACY_CONSENT_REQUIRED", message: "发送健康数据前需要明确确认本次数据流向", requestId } }, { status: 428 });
+          if (!settings.getAiConsent().granted) {
+            if (consent.privacyConsent === true) settings.setAiConsent(true);
+            else return Response.json({ ok: false, error: { code: "AI_CONSENT_REQUIRED", message: "请先在设置中心完成一次 AI 数据授权", requestId } }, { status: 428 });
           }
           const providerName = settings.getModelName();
           if (!settings.getKey(providerName)) {
@@ -329,8 +347,9 @@ export function startServer(
         try {
           let consent: { privacyConsent?: boolean } = {};
           try { consent = await parseJson<{ privacyConsent?: boolean }>(req); } catch { /* 按未授权处理，避免读取健康数据 */ }
-          if (consent.privacyConsent !== true) {
-            return Response.json({ ok: false, error: { code: "PRIVACY_CONSENT_REQUIRED", message: "发送健康数据前需要明确确认本次数据流向", requestId } }, { status: 428 });
+          if (!settings.getAiConsent().granted) {
+            if (consent.privacyConsent === true) settings.setAiConsent(true);
+            else return Response.json({ ok: false, error: { code: "AI_CONSENT_REQUIRED", message: "请先在设置中心完成一次 AI 数据授权", requestId } }, { status: 428 });
           }
           const providerName = settings.getModelName();
           if (!settings.getKey(providerName)) {
@@ -353,6 +372,7 @@ export function startServer(
       if (req.method === "POST" && url.pathname === "/api/v1/fridge/ai-check") {
         const requestId = crypto.randomUUID();
         try {
+          if (!settings.getAiConsent().granted) return Response.json({ ok: false, error: { code: "AI_CONSENT_REQUIRED", message: "请先在设置中心完成一次 AI 数据授权", requestId } }, { status: 428 });
           const providerName = settings.getModelName();
           if (!settings.getKey(providerName)) {
             return Response.json({ ok: false, error: { code: "MODEL_NOT_CONFIGURED", message: `模型 "${providerName}" 缺少 API Key，请先在设置中心配置`, requestId } }, { status: 422 });
@@ -391,8 +411,9 @@ export function startServer(
         try {
           let body: { privacyConsent?: boolean; dish?: string; servings?: number } = {};
           try { body = await parseJson<typeof body>(req); } catch { /* 按未授权处理，避免读取健康数据 */ }
-          if (body.privacyConsent !== true) {
-            return Response.json({ ok: false, error: { code: "PRIVACY_CONSENT_REQUIRED", message: "发送冰箱食材与偏好前需要明确确认本次数据流向", requestId } }, { status: 428 });
+          if (!settings.getAiConsent().granted) {
+            if (body.privacyConsent === true) settings.setAiConsent(true);
+            else return Response.json({ ok: false, error: { code: "AI_CONSENT_REQUIRED", message: "请先在设置中心完成一次 AI 数据授权", requestId } }, { status: 428 });
           }
           const dish = (body.dish ?? "").trim();
           if (!dish || dish.length > 60) {

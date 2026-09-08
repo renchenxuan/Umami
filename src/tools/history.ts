@@ -17,8 +17,8 @@ export function createHistoryTools(db: RecipeDB): AgentTool<any>[] {
       parameters: SaveHistorySchema,
       execute: async (_id, params) => {
         const p = params as Static<typeof SaveHistorySchema>;
-        db.addRecipeHistory(p.title, "agent", p.content);
-        return { content: [text(`已保存历史记录：${p.title}`)], details: p };
+        const id = db.addRecipeHistory(p.title, "agent", p.content);
+        return { content: [text(`已保存历史记录：${p.title}`)], details: { ...p, id } };
       },
     },
     {

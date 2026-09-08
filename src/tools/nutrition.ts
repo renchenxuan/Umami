@@ -25,7 +25,7 @@ function formatNutrition(data: Record<string, unknown>): string {
   return lines.join("\n");
 }
 
-export function createNutritionTool(models: Models, getModel: () => Model<any>): AgentTool<any> {
+export function createNutritionTool(models: Models, getModel: () => Model<any>, settings?: import("../settings").SettingsStore): AgentTool<any> {
   return {
     name: "analyze_nutrition",
     label: "营养分析",
@@ -37,6 +37,9 @@ export function createNutritionTool(models: Models, getModel: () => Model<any>):
       const plan = p.week_plan.trim();
       if (!plan) {
         return { content: [text("请先提供菜谱内容，我才能做营养分析。")], details: null };
+      }
+      if (settings && !settings.getAiConsent().granted) {
+        return { content: [text("营养分析需要先在设置中心完成一次 AI 数据授权。")], details: { code: "AI_CONSENT_REQUIRED" } };
       }
 
       const context: Context = {

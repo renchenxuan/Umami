@@ -24,8 +24,8 @@ export function createGoalTools(db: RecipeDB): AgentTool<any>[] {
       parameters: SetGoalSchema,
       execute: async (_id, params) => {
         const p = params as Static<typeof SetGoalSchema>;
-        db.addGoal(p.name, p.category ?? "健康", p.target ?? "", p.unit ?? "");
-        return { content: [text(`已设置目标：${p.name}`)], details: p };
+        const id = db.addGoal(p.name, p.category ?? "健康", p.target ?? "", p.unit ?? "");
+        return { content: [text(`已设置目标：${p.name}`)], details: { ...p, id } };
       },
     },
     {
@@ -54,8 +54,9 @@ export function createGoalTools(db: RecipeDB): AgentTool<any>[] {
       parameters: UpdateGoalSchema,
       execute: async (_id, params) => {
         const p = params as Static<typeof UpdateGoalSchema>;
+        const matches = db.getGoals().filter((goal) => goal.name === p.name);
         db.updateGoalStatus(p.name, p.status);
-        return { content: [text(`已更新目标「${p.name}」状态为：${p.status}`)], details: p };
+        return { content: [text(`已更新目标「${p.name}」状态为：${p.status}`)], details: { ...p, ids: matches.map((goal) => goal.id) } };
       },
     },
   ];

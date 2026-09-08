@@ -43,13 +43,14 @@ const getModel = () => agent.state.model;
 agent = createAgent(db, models, getModel, initialModel, { settings });
 
 startServer(agent, db, settings, models, {
-  conversationAgentFactory: ({ conversationId, model, getApiKey, onProposal }) => {
+  conversationAgentFactory: ({ conversationId, model, getApiKey, onProposal, onCommit }) => {
     let conversationAgent: Agent;
     const enabledSkillIds = settings.getEnabledSkills();
     conversationAgent = createAgent(db, models, () => conversationAgent.state.model, model, {
       conversationId,
       getApiKey,
       onProposal,
+      onCommit,
       enabledSkillIds,
       sessionId: String(conversationId),
       settings,

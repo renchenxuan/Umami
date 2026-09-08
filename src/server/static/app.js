@@ -10,6 +10,13 @@ const conversationList = document.getElementById("conversation-list");
 const newConvBtn = document.getElementById("new-conv-btn");
 const appStatus = document.getElementById("app-status");
 
+// 页面可按需裁剪模块；单个模块缺失时不能阻断其余交互初始化。
+function listen(target, type, handler, options) {
+  if (!target || typeof target.addEventListener !== "function") return false;
+  target.addEventListener(type, handler, options);
+  return true;
+}
+
 let pendingImage = null; // { base64, mimeType, dataUrl }
 let currentConversationId = null;
 let conversations = [];
@@ -207,11 +214,16 @@ const appShell = document.querySelector(".app");
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 function openModal(modal, initialFocus) {
+  if (!modal) return false;
   modalReturnFocus = document.activeElement;
   activeModal = modal;
   modal.classList.remove("hidden");
   if (appShell) appShell.inert = true;
-  requestAnimationFrame(() => (initialFocus || modal.querySelector(FOCUSABLE) || modal.querySelector(".modal-content")).focus());
+  requestAnimationFrame(() => {
+    const target = initialFocus || modal.querySelector(FOCUSABLE) || modal.querySelector(".modal-content");
+    if (target && typeof target.focus === "function") target.focus();
+  });
+  return true;
 }
 
 function closeModal(modal) {
@@ -314,7 +326,7 @@ function summarizeAction(action) {
 }
 
 function scrollBottom() {
-  messages.scrollTop = messages.scrollHeight;
+  if (messages) messages.scrollTop = messages.scrollHeight;
 }
 
 // SQLite 的 CURRENT_TIMESTAMP 是 UTC「YYYY-MM-DD HH:MM:SS」，按 UTC 解析、本地展示。
@@ -434,7 +446,7 @@ function finishToolTraceItem(trace, evt) {
 // 数据被写入（确认提案 / 撤销 / 会话结束）后，刷新受影响的结构化视图。
 async function refreshAfterDataChange() {
   try { await refreshFridgeItems(); } catch { /* 冰箱数据不可用时静默 */ }
-  if (document.body.dataset.view === "board" && typeof renderBoard === "function") renderBoard();
+  if (document.body.dataset.view === "board" && typeof renderBoard === "function") { renderBoard(); loadToday(); }
 }
 
 function renderActionCard(action) {
@@ -523,7 +535,7 @@ async function resolveAction(id, transition, card, actions) {
   }
 }
 
-attachBtn.addEventListener("click", () => fileInput.click());
+listen(attachBtn, "click", () => fileInput?.click());
 
 function loadImageFile(file) {
   if (!file || !file.type || !file.type.startsWith("image/")) return;
@@ -541,18 +553,18 @@ function loadImageFile(file) {
   reader.readAsDataURL(file);
 }
 
-fileInput.addEventListener("change", () => {
+listen(fileInput, "change", () => {
   loadImageFile(fileInput.files && fileInput.files[0]);
 });
 
-clearImg.addEventListener("click", () => {
+listen(clearImg, "click", () => {
   pendingImage = null;
-  preview.classList.add("hidden");
-  fileInput.value = "";
+  preview?.classList.add("hidden");
+  if (fileInput) fileInput.value = "";
 });
 
 // 粘贴 / 拖拽图片：与文件选择共用同一预览与发送链路。
-input.addEventListener("paste", (e) => {
+listen(input, "paste", (e) => {
   const items = (e.clipboardData && e.clipboardData.items) || [];
   for (const item of items) {
     if (item.type && item.type.startsWith("image/")) {
@@ -697,6 +709,7 @@ function handleEvent(evt, bubble) {
     renderActionCard(evt.action);
     if (window.__umamiPet) window.__umamiPet.setState("waiting");
   } else if (evt.type === "action_committed") {
+    renderCommittedActionReceipt(evt.action);
     refreshAfterDataChange();
     if (window.__umamiPet) window.__umamiPet.setState("jumping");
     spawnSuccessRipple();
@@ -885,7 +898,7 @@ async function autoTitleConversation(id, text) {
   } catch { /* 保持默认标题 */ }
 }
 
-sendBtn.addEventListener("click", () => {
+listen(sendBtn, "click", () => {
   if (sending) {
     if (currentAbortController) currentAbortController.abort();
     return;
@@ -893,7 +906,7 @@ sendBtn.addEventListener("click", () => {
   send();
 });
 
-input.addEventListener("keydown", (e) => {
+listen(input, "keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
     if (!sending) send();
@@ -901,7 +914,7 @@ input.addEventListener("keydown", (e) => {
 });
 
 // 输入框随内容自动增高（多行输入不被裁切，移动端两行占位可完整显示）
-input.addEventListener("input", () => {
+listen(input, "input", () => {
   input.style.height = "auto";
   input.style.height = Math.min(input.scrollHeight, 140) + "px";
 });
@@ -1300,9 +1313,12 @@ function renderSkillsList(skills) {
   if (!skillsList) return;
   skillsList.innerHTML = "";
   for (const s of skills) {
-    const card = document.createElement("div");
-    card.className = "skill-card";
     const isOn = currentEnabledSkills.includes(s.id);
+    // label 包裹 checkbox：点磁贴任意位置都能切换，点击面积从开关扩展到整卡
+    const card = document.createElement("label");
+    card.className = "skill-card" + (isOn ? " is-on" : "");
+    // 描述按行截断，全文保留在 tooltip 里
+    card.title = s.description;
 
     const iconEl = document.createElement("div");
     iconEl.className = "skill-card-icon";
@@ -1319,16 +1335,29 @@ function renderSkillsList(skills) {
     body.appendChild(nameEl);
     body.appendChild(descEl);
 
+    const foot = document.createElement("div");
+    foot.className = "skill-card-foot";
     const toggle = document.createElement("input");
     toggle.type = "checkbox";
     toggle.className = "skill-toggle";
     toggle.checked = isOn;
     toggle.setAttribute("aria-label", s.name + (isOn ? "（已启用）" : "（未启用）"));
-    toggle.addEventListener("change", () => saveSkillToggle(s.id, toggle.checked));
+    const stateEl = document.createElement("span");
+    stateEl.className = "skill-state";
+    stateEl.textContent = isOn ? "已开启" : "已关闭";
+    toggle.addEventListener("change", () => {
+      const on = toggle.checked;
+      card.classList.toggle("is-on", on);
+      stateEl.textContent = on ? "已开启" : "已关闭";
+      toggle.setAttribute("aria-label", s.name + (on ? "（已启用）" : "（未启用）"));
+      saveSkillToggle(s.id, on);
+    });
+    foot.appendChild(toggle);
+    foot.appendChild(stateEl);
 
     card.appendChild(iconEl);
     card.appendChild(body);
-    card.appendChild(toggle);
+    card.appendChild(foot);
     skillsList.appendChild(card);
   }
 }
@@ -1469,7 +1498,7 @@ function loadHiddenBoardCards() {
 
 function saveHiddenBoardCards(cards) {
   localStorage.setItem(BOARD_HIDDEN_KEY, JSON.stringify([...cards]));
-  restoreBoardBtn.classList.toggle("hidden", cards.size === 0);
+  restoreBoardBtn?.classList.toggle("hidden", cards.size === 0);
 }
 
 // v3.1：未拖拽过的卡片不再按固定列坐标摆放（窄屏会溢出/叠压），
@@ -1495,7 +1524,7 @@ function createBoardFlow() {
 function makeDraggable(cardEl, key) {
   cardEl.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
-    if (e.target.closest(".board-card-del, .board-card-action")) return;
+    if (e.target instanceof Element && e.target.closest(".board-card-del, .board-card-action")) return;
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
@@ -1561,6 +1590,7 @@ function buildCard(type, item, key, pos) {
   badge.textContent = type.label;
 
   const del = document.createElement("button");
+  del.type = "button";
   del.className = "board-card-del";
   del.title = "从面板移除（不会删除记录）";
   del.setAttribute("aria-label", `从面板移除${type.label}卡片：${title || "未命名"}`);
@@ -1648,6 +1678,7 @@ function makeCardShell(key, extraClass, pos) {
   const badge = document.createElement("span");
   badge.className = "board-card-badge";
   const del = document.createElement("button");
+  del.type = "button";
   del.className = "board-card-del";
   del.title = "从面板移除（不会删除记录）";
   del.setAttribute("aria-label", "从面板移除卡片");
@@ -1808,9 +1839,10 @@ async function buildDietCard(pos) {
 }
 
 async function renderBoard() {
+  if (!boardCanvas) return;
   const positions = loadBoardPositions();
   const hidden = loadHiddenBoardCards();
-  restoreBoardBtn.classList.toggle("hidden", hidden.size === 0);
+  restoreBoardBtn?.classList.toggle("hidden", hidden.size === 0);
   const inner = ensureBoardInner();
   inner.innerHTML = "";
   const flow = createBoardFlow();
@@ -1877,31 +1909,45 @@ async function renderBoard() {
   }
 }
 
-restoreBoardBtn.addEventListener("click", () => {
+listen(restoreBoardBtn, "click", () => {
   saveHiddenBoardCards(new Set());
   renderBoard();
 });
 
 function showView(view) {
   const isChat = view === "chat";
+  const setHidden = (element, hidden) => element?.classList.toggle("hidden", hidden);
+  if (view === "board") {
+    document.getElementById("today-structured")?.classList.remove("hidden");
+    document.getElementById("organize-board-shell")?.classList.add("hidden");
+    document.getElementById("board-toolbar")?.classList.add("hidden");
+    document.getElementById("organize-board-btn")?.classList.remove("hidden");
+  }
   document.body.dataset.view = view;
-  sidebarEl.classList.toggle("hidden", !isChat);
-  messages.classList.toggle("hidden", !isChat);
-  footerEl.classList.toggle("hidden", !isChat);
-  board.classList.toggle("hidden", view !== "board");
-  fridgeView.classList.toggle("hidden", view !== "fridge");
-  fitnessView.classList.toggle("hidden", view !== "fitness");
-  dietView.classList.toggle("hidden", view !== "diet");
-  tutorialsView.classList.toggle("hidden", view !== "tutorials");
-  profileView.classList.toggle("hidden", view !== "profile");
+  setHidden(sidebarEl, !isChat);
+  setHidden(messages, !isChat);
+  setHidden(footerEl, !isChat);
+  setHidden(board, view !== "board");
+  setHidden(fridgeView, view !== "fridge");
+  setHidden(fitnessView, view !== "fitness");
+  setHidden(dietView, view !== "diet");
+  setHidden(tutorialsView, view !== "tutorials");
+  setHidden(profileView, view !== "profile");
+  requestAnimationFrame(() => window.__umamiPet?.refresh?.());
   document.querySelectorAll(".nav-btn").forEach((b) => {
     const active = b.dataset.view === view;
     b.classList.toggle("active", active);
     b.setAttribute("aria-selected", active ? "true" : "false");
     b.tabIndex = active ? 0 : -1;
   });
+  document.querySelectorAll(".desktop-nav-btn[data-view]").forEach((b) => {
+    const active = b.dataset.view === view;
+    b.classList.toggle("active", active);
+    if (active) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
+  });
   if (view === "fridge") loadFridgePage();
-  if (view === "board") renderBoard();
+  if (view === "board") { renderBoard(); loadToday(); }
   if (view === "fitness") loadFitness();
   if (view === "diet") loadDiet();
   if (view === "tutorials") loadTutorials();
@@ -2116,14 +2162,14 @@ function openFoodModal(food) {
   openModal(foodModal, foodQty);
 }
 
-foodModalClose.addEventListener("click", () => closeModal(foodModal));
+listen(foodModalClose, "click", () => closeModal(foodModal));
 const foodZoneRow = document.getElementById("food-zone-row");
 if (foodZoneRow) {
   for (const btn of foodZoneRow.querySelectorAll(".zone-btn")) {
     btn.addEventListener("click", () => setModalZone(btn.dataset.zone));
   }
 }
-foodAddBtn.addEventListener("click", async () => {
+listen(foodAddBtn, "click", async () => {
   if (!pendingFood) return;
   const qty = foodQty.value.trim();
   const quantity = qty ? qty + foodUnit.value : "";
@@ -2407,11 +2453,11 @@ function renderZoneFoodOptions(query) {
 }
 
 if (zoneModal) {
-  document.getElementById("zone-modal-close").addEventListener("click", () => closeModal(zoneModal));
+  listen(document.getElementById("zone-modal-close"), "click", () => closeModal(zoneModal));
   for (const head of document.querySelectorAll(".fridge-zone-head")) {
     head.addEventListener("click", () => openZoneModal(head.dataset.zone));
   }
-  zoneFoodSearch.addEventListener("input", debounce(() => renderZoneFoodOptions(zoneFoodSearch.value), 150));
+  listen(zoneFoodSearch, "input", debounce(() => renderZoneFoodOptions(zoneFoodSearch.value), 150));
 }
 
 // ---- 食材详情弹窗：图片 / 天数 / 备注 等 ----
@@ -2449,8 +2495,8 @@ function openIngredientModal(id) {
 }
 
 if (ingredientModal) {
-  document.getElementById("ingredient-modal-close").addEventListener("click", () => closeModal(ingredientModal));
-  document.getElementById("ingredient-save-btn").addEventListener("click", async () => {
+  listen(document.getElementById("ingredient-modal-close"), "click", () => closeModal(ingredientModal));
+  listen(document.getElementById("ingredient-save-btn"), "click", async () => {
     if (!ingredientModalId) return;
     try {
       await apiRequest("/api/v1/ingredients/" + ingredientModalId, {
@@ -2463,7 +2509,7 @@ if (ingredientModal) {
       closeModal(ingredientModal);
     } catch (error) { showAppStatus("保存失败：" + error.message); }
   });
-  document.getElementById("ingredient-move-btn").addEventListener("click", async () => {
+  listen(document.getElementById("ingredient-move-btn"), "click", async () => {
     if (!ingredientModalId) return;
     const target = document.getElementById("ingredient-move-btn").dataset.targetZone;
     try {
@@ -2477,7 +2523,7 @@ if (ingredientModal) {
       closeModal(ingredientModal);
     } catch (error) { showAppStatus("移动失败：" + error.message); }
   });
-  document.getElementById("ingredient-del-btn").addEventListener("click", async () => {
+  listen(document.getElementById("ingredient-del-btn"), "click", async () => {
     if (!ingredientModalId) return;
     await removeFromFridge(ingredientModalId);
     closeModal(ingredientModal);
@@ -2593,7 +2639,7 @@ function debounce(fn, wait) {
     t = setTimeout(() => fn(...args), wait);
   };
 }
-foodSearch.addEventListener("input", debounce(searchFoods, 200));
+listen(foodSearch, "input", debounce(searchFoods, 200));
 
 // ---- 健身 ----
 const wType = document.getElementById("w-type");
@@ -2713,7 +2759,7 @@ async function removeWorkout(id) {
   } catch (error) { showAppStatus("删除训练失败：" + error.message); }
 }
 
-document.getElementById("workout-form").addEventListener("submit", (e) => { e.preventDefault(); addWorkout(); });
+listen(document.getElementById("workout-form"), "submit", (e) => { e.preventDefault(); addWorkout(); });
 
 // ---- 饮食 ----
 const dMeal = document.getElementById("d-meal");
@@ -2876,7 +2922,7 @@ async function removeDiet(id) {
   } catch (error) { showAppStatus("删除饮食记录失败：" + error.message); }
 }
 
-document.getElementById("diet-form").addEventListener("submit", (e) => { e.preventDefault(); addDiet(); });
+listen(document.getElementById("diet-form"), "submit", (e) => { e.preventDefault(); addDiet(); });
 
 // ---- 个人资料 ----
 const pHeight = document.getElementById("p-height");
@@ -2998,7 +3044,7 @@ function renderProfileDaily(metrics, diets) {
   }
 }
 
-document.getElementById("weight-form").addEventListener("submit", async (e) => {
+listen(document.getElementById("weight-form"), "submit", async (e) => {
   e.preventDefault();
   const w = pWeight.value.trim();
   if (!w) return;
@@ -3017,7 +3063,7 @@ document.getElementById("weight-form").addEventListener("submit", async (e) => {
   } catch (err) { showAppStatus("记录失败：" + err.message); }
 });
 
-document.getElementById("profile-form").addEventListener("submit", async (e) => {
+listen(document.getElementById("profile-form"), "submit", async (e) => {
   e.preventDefault();
   const payload = {
     height_cm: pHeight.value ? Number(pHeight.value) : null,
@@ -3110,10 +3156,10 @@ document.querySelectorAll(".add-type").forEach((btn) => {
   });
 });
 
-addCardClose.addEventListener("click", () => closeModal(addCardModal));
-document.getElementById("add-card-btn").addEventListener("click", openAddCard);
+listen(addCardClose, "click", () => closeModal(addCardModal));
+listen(document.getElementById("add-card-btn"), "click", openAddCard);
 
-addCardSubmit.addEventListener("click", async () => {
+listen(addCardSubmit, "click", async () => {
   const values = {};
   let valid = true;
   for (const f of ADD_FIELDS[addCardType]) {
@@ -3158,9 +3204,7 @@ const recommendClose = document.getElementById("recommend-close");
 const recommendLoading = document.getElementById("recommend-loading");
 const recommendResult = document.getElementById("recommend-result");
 const recommendConsent = document.getElementById("recommend-consent");
-const recommendConsentCheck = document.getElementById("recommend-consent-check");
 const recommendGenerate = document.getElementById("recommend-generate");
-const recommendProvider = document.getElementById("recommend-provider");
 
 const FOOD_EMOJI = {
   番茄: "🍅", 土豆: "🥔", 胡萝卜: "🥕", 白萝卜: "🥕", 鸡蛋: "🥚", 鸡胸肉: "🍗", 鸡肉: "🍗", 鸡腿: "🍗", 鸡翅: "🍗",
@@ -3185,12 +3229,18 @@ function foodEmoji(name) {
 }
 
 function showRecommendError(msg) {
+  if (!recommendResult) return;
   recommendResult.innerHTML = "";
   const div = document.createElement("div");
   div.className = "recommend-error";
   div.textContent = msg;
   recommendResult.appendChild(div);
   recommendResult.classList.remove("hidden");
+}
+
+function setProviderLabel(id, text) {
+  const element = document.getElementById(id);
+  if (element) element.textContent = text;
 }
 
 function renderRecSection(title, items, kind) {
@@ -3287,22 +3337,25 @@ function renderRecommendation(data) {
 }
 
 async function openRecommendationConsent() {
-  recommendConsent.classList.remove("hidden");
-  recommendLoading.classList.add("hidden");
-  recommendResult.classList.add("hidden");
-  recommendResult.innerHTML = "";
-  recommendConsentCheck.checked = false;
-  recommendGenerate.disabled = true;
-  recommendProvider.textContent = "当前已配置的模型提供商";
-  openModal(recommendModal, recommendConsentCheck);
+  if (!recommendModal) return;
+  recommendConsent?.classList.remove("hidden");
+  recommendLoading?.classList.add("hidden");
+  recommendResult?.classList.add("hidden");
+  if (recommendResult) recommendResult.innerHTML = "";
+  if (recommendGenerate) recommendGenerate.disabled = !currentSettings?.aiConsent?.granted;
+  setProviderLabel("recommend-provider", "当前已配置的模型提供商");
+  openModal(recommendModal, recommendGenerate);
   try {
-    const settings = await fetch("/api/settings").then((res) => res.json());
-    recommendProvider.textContent = `${settings.modelName || "当前模型"} / ${settings.model || "默认模型"}`;
-  } catch { recommendProvider.textContent = "当前已配置的模型提供商"; }
+    const settings = await apiRequest("/api/settings");
+    setProviderLabel("recommend-provider", `${settings.modelName || "当前模型"} / ${settings.model || "默认模型"}`);
+  } catch (error) {
+    setProviderLabel("recommend-provider", "当前已配置的模型提供商");
+    showAppStatus("读取推荐设置失败：" + error.message);
+  }
 }
 
 async function generateRecommendations() {
-  if (!recommendConsentCheck.checked) return;
+  if (!currentSettings?.aiConsent?.granted) { openAiConsentSettings(); return; }
   recommendConsent.classList.add("hidden");
   recommendLoading.classList.remove("hidden");
   recommendResult.classList.add("hidden");
@@ -3311,7 +3364,7 @@ async function generateRecommendations() {
     const data = await apiRequest("/api/v1/recommendations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ privacyConsent: true }),
+      body: JSON.stringify({}),
     });
     renderRecommendation(data);
   } catch (e) {
@@ -3321,18 +3374,15 @@ async function generateRecommendations() {
   }
 }
 
-recommendConsentCheck.addEventListener("change", () => { recommendGenerate.disabled = !recommendConsentCheck.checked; });
-recommendGenerate.addEventListener("click", generateRecommendations);
-recommendClose.addEventListener("click", () => closeModal(recommendModal));
-document.getElementById("recommend-btn").addEventListener("click", openRecommendationConsent);
+listen(recommendGenerate, "click", generateRecommendations);
+listen(recommendClose, "click", () => closeModal(recommendModal));
+listen(document.getElementById("recommend-btn"), "click", openRecommendationConsent);
 
 // ---- 健康分析 ----
 const analysisModal = document.getElementById("analysis-modal");
 const analysisClose = document.getElementById("analysis-close");
 const analysisConsent = document.getElementById("analysis-consent");
-const analysisConsentCheck = document.getElementById("analysis-consent-check");
 const analysisGenerate = document.getElementById("analysis-generate");
-const analysisProvider = document.getElementById("analysis-provider");
 const analysisLoading = document.getElementById("analysis-loading");
 const analysisResult = document.getElementById("analysis-result");
 
@@ -3356,17 +3406,20 @@ function renderAnalysisMarkdown(text) {
 }
 
 function openAnalysis() {
-  analysisConsent.classList.remove("hidden");
-  analysisLoading.classList.add("hidden");
-  analysisResult.classList.add("hidden");
-  analysisResult.innerHTML = "";
-  analysisConsentCheck.checked = false;
-  analysisGenerate.disabled = true;
-  analysisProvider.textContent = "当前已配置的模型提供商";
-  openModal(analysisModal, analysisConsentCheck);
+  if (!analysisModal) return;
+  analysisConsent?.classList.remove("hidden");
+  analysisLoading?.classList.add("hidden");
+  analysisResult?.classList.add("hidden");
+  if (analysisResult) analysisResult.innerHTML = "";
+  if (analysisGenerate) analysisGenerate.disabled = !currentSettings?.aiConsent?.granted;
+  setProviderLabel("analysis-provider", "当前已配置的模型提供商");
+  openModal(analysisModal, analysisGenerate);
   apiRequest("/api/settings")
-    .then((s) => { analysisProvider.textContent = s.modelName || "当前模型"; })
-    .catch(() => { analysisProvider.textContent = "当前已配置的模型提供商"; });
+    .then((s) => { setProviderLabel("analysis-provider", s.modelName || "当前模型"); })
+    .catch((error) => {
+      setProviderLabel("analysis-provider", "当前已配置的模型提供商");
+      showAppStatus("读取分析设置失败：" + error.message);
+    });
 }
 
 function selectAnalysisPeriod(period) {
@@ -3378,7 +3431,7 @@ function selectAnalysisPeriod(period) {
 }
 
 async function generateAnalysis() {
-  if (!analysisConsentCheck.checked) return;
+  if (!currentSettings?.aiConsent?.granted) { openAiConsentSettings(); return; }
   analysisConsent.classList.add("hidden");
   analysisLoading.classList.remove("hidden");
   analysisResult.classList.add("hidden");
@@ -3387,7 +3440,7 @@ async function generateAnalysis() {
     const data = await apiRequest("/api/v1/analysis?period=" + analysisPeriod, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ privacyConsent: true }),
+      body: JSON.stringify({}),
     });
     analysisResult.innerHTML = renderAnalysisMarkdown(data.text || "");
     analysisResult.classList.remove("hidden");
@@ -3403,11 +3456,10 @@ async function generateAnalysis() {
   }
 }
 
-document.querySelectorAll(".analysis-tab").forEach((b) => b.addEventListener("click", () => selectAnalysisPeriod(b.dataset.period)));
-analysisConsentCheck.addEventListener("change", () => { analysisGenerate.disabled = !analysisConsentCheck.checked; });
-analysisGenerate.addEventListener("click", generateAnalysis);
-analysisClose.addEventListener("click", () => closeModal(analysisModal));
-document.getElementById("analysis-btn").addEventListener("click", openAnalysis);
+document.querySelectorAll(".analysis-tab").forEach((b) => listen(b, "click", () => selectAnalysisPeriod(b.dataset.period)));
+listen(analysisGenerate, "click", generateAnalysis);
+listen(analysisClose, "click", () => closeModal(analysisModal));
+listen(document.getElementById("analysis-btn"), "click", openAnalysis);
 
 // ---- 设置中心 ----
 const settingsBtn = document.getElementById("settings-btn");
@@ -3430,40 +3482,598 @@ let currentSettings = null;
 async function loadSettings() {
   try {
     const res = await fetch("/api/settings");
-    currentSettings = await res.json();
-    providerSelect.value = currentSettings.modelName;
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload?.error?.message || payload?.message || `请求失败（${res.status}）`);
+    if (payload?.ok === false) throw new Error(payload.error?.message || payload.message || "设置请求失败");
+    currentSettings = payload?.ok === true ? payload.data : payload;
+    if (!currentSettings || typeof currentSettings !== "object") throw new Error("设置响应格式无效");
+    if (providerSelect) providerSelect.value = currentSettings.modelName || providerSelect.value;
     if (currentSettings.custom) {
-      baseUrlInput.value = currentSettings.custom.baseUrl || "";
-      modelIdInput.value = currentSettings.custom.model || "";
+      if (baseUrlInput) baseUrlInput.value = currentSettings.custom.baseUrl || "";
+      if (modelIdInput) modelIdInput.value = currentSettings.custom.model || "";
     }
     if (currentSettings.uiTheme) applyTheme(currentSettings.uiTheme);
     const thinkingSelect = document.getElementById("thinking-select");
     if (thinkingSelect && currentSettings.thinkingLevel) thinkingSelect.value = currentSettings.thinkingLevel;
     renderKeyHint();
+    renderAiConsent();
     populateModelSelect();
     updateModelAvailability();
     refreshMapsBanner();
     renderExternalServices();
-  } catch {
-    /* 忽略 */
+    return currentSettings;
+  } catch (error) {
+    const message = "设置加载失败：" + (error?.message || "未知错误");
+    showStatus(message, false);
+    showAppStatus(message);
+    return null;
+  }
+}
+
+function renderCommittedActionReceipt(action) {
+  const target = document.querySelector(".messages");
+  if (!target || !action) return;
+  const card = document.createElement("div"); card.className = "action-card committed-action";
+  const title = document.createElement("div"); title.className = "action-card-title"; title.textContent = "已记录 · " + (ACTION_LABELS[action.action_type] || action.action_type);
+  const summary = document.createElement("div"); summary.className = "action-card-summary"; summary.textContent = summarizeAction(action);
+  card.append(title, summary);
+  const actions = document.createElement("div"); actions.className = "action-card-actions";
+  if (action.undo_available) { const undo = document.createElement("button"); undo.className = "action-undo"; undo.textContent = "撤销"; undo.addEventListener("click", () => resolveAction(action.id, "undo", card, actions)); actions.appendChild(undo); }
+  card.appendChild(actions); target.appendChild(card); target.scrollTop = target.scrollHeight;
+}
+
+let todayViewData = null;
+const todayStructured = document.getElementById("today-structured");
+const todayMetrics = document.getElementById("today-metrics");
+const todayNextActions = document.getElementById("today-next-actions");
+const todayActivity = document.getElementById("today-activity");
+const todayTuntunPanel = document.querySelector(".today-tuntun-panel");
+const todayTuntunPet = document.getElementById("today-tuntun-pet");
+
+if (todayTuntunPet && window.UmamiPet) {
+  window.UmamiPet.create(todayTuntunPet, { draggable: false, bubble: false });
+}
+
+function openTuntunChat(prompt = "") {
+  showView("chat");
+  requestAnimationFrame(() => {
+    if (input && prompt) {
+      input.value = prompt;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    input?.focus();
+  });
+}
+
+listen(todayTuntunPanel, "click", (event) => {
+  const target = event.target instanceof Element
+    ? event.target.closest("[data-today-prompt], #today-tuntun-open")
+    : null;
+  if (!target || !todayTuntunPanel.contains(target)) return;
+  openTuntunChat(target.dataset.todayPrompt || "");
+});
+
+function handleTodayAction(kind) {
+  switch (kind) {
+    case "fridge":
+      showView("fridge");
+      return;
+    case "diet":
+    case "fitness":
+    case "weight":
+    case "habit":
+      focusRecord(kind);
+      return;
+    case "analysis":
+      if (typeof openAnalysis === "function") openAnalysis();
+      else showAppStatus("健康分析暂不可用");
+      return;
+    default:
+      showAppStatus("暂不支持该今日行动：" + (kind || "未知操作"));
+  }
+}
+
+function renderTodayError(error) {
+  todayViewData = null;
+  const reason = error?.message || "今日数据接口暂时不可用";
+  const createErrorState = () => {
+    const state = document.createElement("div");
+    state.className = "today-load-error settings-status err";
+    const title = document.createElement("strong");
+    title.textContent = "今日数据暂时无法加载";
+    const detail = document.createElement("span");
+    detail.textContent = "同步失败：" + reason;
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.id = "today-reload-btn";
+    retry.className = "primary-btn";
+    retry.textContent = "重新加载今日数据";
+    state.append(title, detail, retry);
+    return state;
+  };
+
+  if (todayMetrics) {
+    todayMetrics.replaceChildren(createErrorState());
+  } else if (todayNextActions) {
+    todayNextActions.replaceChildren(createErrorState());
+  } else if (todayStructured) {
+    todayStructured.appendChild(createErrorState());
+  }
+  if (todayNextActions && todayMetrics) {
+    const recovery = document.createElement("div");
+    recovery.className = "today-recovery";
+    const message = document.createElement("p");
+    message.className = "today-recovery-message";
+    message.textContent = "今日数据暂时未同步，但你仍可以直接记录。";
+    const actions = document.createElement("div");
+    actions.className = "today-action-list";
+    [
+      ["记录第一餐", "饮食", "diet"],
+      ["记一次运动", "训练", "fitness"],
+      ["更新身体数据", "体重", "weight"],
+      ["打开冰箱", "冰箱", "fridge"],
+    ].forEach(([label, action, kind]) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "today-action";
+      button.dataset.todayAction = kind;
+      const title = document.createElement("span");
+      title.textContent = label;
+      const link = document.createElement("b");
+      link.textContent = action + " →";
+      button.append(title, link);
+      actions.appendChild(button);
+    });
+    recovery.append(message, actions);
+    todayNextActions.replaceChildren(recovery);
+  }
+  if (todayActivity) {
+    todayActivity.replaceChildren(Object.assign(document.createElement("p"), {
+      className: "today-empty",
+      textContent: "最近记录暂时无法读取，请先重新加载今日数据。",
+    }));
+  }
+}
+
+// 今日行动区保持一次稳定的事件委托；renderToday 重绘按钮不会丢失跳转能力。
+listen(todayStructured || document, "click", (event) => {
+  const target = event.target instanceof Element
+    ? event.target.closest("#today-reload-btn, [data-today-action]")
+    : null;
+  if (!target || (todayStructured && !todayStructured.contains(target))) return;
+  if (target.id === "today-reload-btn") {
+    void loadToday();
+    return;
+  }
+  handleTodayAction(target.dataset.todayAction);
+});
+
+function renderToday(data) {
+  todayViewData = data;
+  const date = document.getElementById("today-date"); if (date) date.textContent = data.date;
+  const metrics = todayMetrics;
+  if (metrics) metrics.innerHTML = [
+    ["tools-kitchen", "饮食热量", `${data.metrics.dietKcal} kcal`, data.metrics.calorieTarget ? `目标 ${data.metrics.calorieTarget}` : "尚未设定目标"],
+    ["barbell", "训练时长", `${data.metrics.workoutMinutes} 分钟`, "今天累计"],
+    ["heart", "习惯完成", `${data.metrics.habitCompleted} 项`, "今天已记录"],
+    ["scale", "最新体重", data.metrics.latestWeight == null ? "—" : `${data.metrics.latestWeight} kg`, "最近一次记录"],
+  ].map(([icon, label, value, note]) => `<div class="today-metric"><span class="today-metric-icon">${uiIcon(icon)}</span><span class="today-metric-label">${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(note)}</small></div>`).join("");
+  const next = todayNextActions;
+  if (next) {
+    const actions = [];
+    if (data.expiringIngredients?.length) actions.push([`有 ${data.expiringIngredients.length} 件食材接近保鲜期限`, "去冰箱处理", "fridge"]);
+    if (!data.metrics.dietKcal) actions.push(["今天还没有饮食记录", "记录第一餐", "diet"]);
+    if (!data.metrics.workoutMinutes) actions.push(["今天还没有训练记录", "记一次训练", "fitness"]);
+    if (!actions.length) actions.push(["今天的基础记录已经有了", "继续看看趋势", "analysis"]);
+    const actionNotes = { fridge: "保鲜提醒", diet: "饮食记录", fitness: "运动记录", analysis: "趋势查看" };
+    next.innerHTML = actions.map(([label, action, kind], index) => `<button type="button" class="today-action${index === 0 ? " is-primary" : ""}" data-today-action="${kind}"><span class="today-action-state" aria-hidden="true"></span><span class="today-action-copy"><strong>${escapeHtml(label)}</strong><small>今天 · ${escapeHtml(actionNotes[kind] || "今日安排")}</small></span><b>${escapeHtml(action)} <span aria-hidden="true">→</span></b></button>`).join("");
+  }
+  const activity = todayActivity;
+  if (activity) activity.innerHTML = data.recentActivity?.length ? data.recentActivity.map((item) => `<div class="today-activity"><span class="today-activity-dot"></span><div><strong>${escapeHtml(item.label || "完成一项记录")}</strong><small>${escapeHtml(relativeTime(item.occurredAt) || item.occurredAt || "今天")}</small></div></div>`).join("") : '<p class="today-empty">还没有记录，从上面的快速记录开始。</p>';
+}
+async function loadToday() {
+  const retry = document.getElementById("today-reload-btn");
+  if (retry) { retry.disabled = true; retry.textContent = "重新加载中…"; }
+  try {
+    renderToday(await apiRequest("/api/v1/today"));
+  } catch (error) {
+    renderTodayError(error);
+    showAppStatus("今日数据加载失败：" + (error?.message || "未知错误"));
+  }
+}
+function focusRecord(kind) {
+  const targets = {
+    diet: { view: "diet", field: "d-foods" },
+    fitness: { view: "fitness", field: "w-type" },
+    weight: { view: "profile", field: "p-weight" },
+    habit: { view: "profile", field: null },
+  };
+  const targetConfig = targets[kind] || targets.habit;
+  const view = targetConfig.view;
+  showView(view);
+  requestAnimationFrame(() => {
+    const field = targetConfig.field ? document.getElementById(targetConfig.field) : null;
+    if (field && typeof field.focus === "function") field.focus();
+    if (kind === "habit" && typeof openHabitsModal === "function") openHabitsModal();
+  });
+}
+
+const organizeBoardShell = document.getElementById("organize-board-shell");
+const boardToolbar = document.getElementById("board-toolbar");
+const closeOrganizeBoardBtn = document.getElementById("close-organize-board-btn");
+function openOrganizeBoard() {
+  todayStructured?.classList.add("hidden");
+  organizeBoardShell?.classList.remove("hidden");
+  boardToolbar?.classList.remove("hidden");
+  document.getElementById("organize-board-btn")?.classList.add("hidden");
+  if (board) renderBoard();
+}
+function closeOrganizeBoard() {
+  organizeBoardShell?.classList.add("hidden");
+  boardToolbar?.classList.add("hidden");
+  todayStructured?.classList.remove("hidden");
+  document.getElementById("organize-board-btn")?.classList.remove("hidden");
+}
+
+function scrollToTodayQuickRecord() {
+  document.querySelector(".today-quick-panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function openTodayQuickRecord() {
+  showView("board");
+  // 今日页切换和看板重绘都可能在当前帧继续进行，下一帧滚动可避免落到旧视图位置。
+  requestAnimationFrame(() => scrollToTodayQuickRecord());
+}
+
+listen(document.getElementById("organize-board-btn"), "click", openOrganizeBoard);
+listen(closeOrganizeBoardBtn, "click", closeOrganizeBoard);
+listen(document.getElementById("today-primary-record"), "click", openTodayQuickRecord);
+document.querySelectorAll(".today-quick-actions [data-quick-record]").forEach((button) => listen(button, "click", () => {
+  if (button.dataset.quickRecord === "1") return openTodayQuickRecord();
+  focusRecord(button.dataset.quickRecord);
+}));
+listen(document.getElementById("today-recommend-link"), "click", openRecommendationConsent);
+listen(document.getElementById("today-analysis-link"), "click", openAnalysis);
+
+const desktopPrimaryNav = document.getElementById("desktop-primary-nav");
+const desktopMoreBtn = document.getElementById("desktop-more-btn");
+const desktopMoreMenu = document.getElementById("desktop-more-menu");
+const desktopMainNavButtons = desktopPrimaryNav
+  ? [...desktopPrimaryNav.querySelectorAll(".desktop-nav-btn[data-view], .desktop-nav-btn[data-quick-record]")]
+  : [];
+
+function setDesktopMoreOpen(open, focusFirst = false) {
+  if (!desktopMoreBtn || !desktopMoreMenu) return false;
+  const nextOpen = !!open;
+  desktopMoreMenu.classList.toggle("hidden", !nextOpen);
+  desktopMoreBtn.setAttribute("aria-expanded", String(nextOpen));
+  document.body.classList.toggle("desktop-menu-open", nextOpen);
+  if (nextOpen && focusFirst) {
+    const first = desktopMoreMenu.querySelector("button:not([disabled])");
+    if (first) requestAnimationFrame(() => first.focus());
+  }
+  return nextOpen;
+}
+
+desktopMainNavButtons.forEach((button, index) => {
+  listen(button, "click", () => {
+    if (button.dataset.quickRecord === "1") return openTodayQuickRecord();
+    if (button.dataset.view) showView(button.dataset.view);
+  });
+  listen(button, "keydown", (event) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const nextIndex = event.key === "Home" ? 0
+      : event.key === "End" ? desktopMainNavButtons.length - 1
+      : (index + (event.key === "ArrowRight" ? 1 : -1) + desktopMainNavButtons.length) % desktopMainNavButtons.length;
+    desktopMainNavButtons[nextIndex]?.focus();
+  });
+});
+
+listen(desktopMoreBtn, "click", () => {
+  const isOpen = !!desktopMoreMenu && !desktopMoreMenu.classList.contains("hidden");
+  setDesktopMoreOpen(!isOpen);
+});
+listen(desktopMoreBtn, "keydown", (event) => {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    setDesktopMoreOpen(false);
+    return;
+  }
+  if (!["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) return;
+  event.preventDefault();
+  const items = desktopMoreMenu ? [...desktopMoreMenu.querySelectorAll("button:not([disabled])")] : [];
+  const isOpen = !!desktopMoreMenu && !desktopMoreMenu.classList.contains("hidden");
+  if (event.key === "Enter" || event.key === " ") {
+    setDesktopMoreOpen(!isOpen, !isOpen);
+    return;
+  }
+  const open = setDesktopMoreOpen(true);
+  if (open && items.length) requestAnimationFrame(() => (event.key === "ArrowUp" ? items[items.length - 1] : items[0]).focus());
+});
+
+const desktopMenuItems = desktopMoreMenu ? [...desktopMoreMenu.querySelectorAll("button")] : [];
+desktopMenuItems.forEach((button, index) => {
+  listen(button, "click", () => {
+    const view = button.dataset.view;
+    const action = button.dataset.action;
+    if (view) showView(view);
+    if (action === "organize-board") { showView("board"); openOrganizeBoard(); }
+    if (action === "settings") {
+      if (settingsBtn) settingsBtn.click();
+      else showAppStatus("设置中心暂不可用");
+    }
+    if (action === "skills") {
+      const button = document.getElementById("skills-btn");
+      if (button) button.click();
+      else showAppStatus("技能中心暂不可用");
+    }
+    if (action === "onboarding") openOnboardingDrawer();
+    if (action === "schedules") {
+      const button = document.getElementById("schedules-btn");
+      if (button) button.click();
+      else showAppStatus("自动化中心暂不可用");
+    }
+    setDesktopMoreOpen(false);
+  });
+  listen(button, "keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setDesktopMoreOpen(false);
+      desktopMoreBtn?.focus();
+      return;
+    }
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const items = desktopMoreMenu ? [...desktopMoreMenu.querySelectorAll("button:not([disabled])")] : [];
+    if (!items.length) return;
+    const currentIndex = Math.max(0, items.indexOf(button));
+    const nextIndex = event.key === "Home" ? 0
+      : event.key === "End" ? items.length - 1
+      : (currentIndex + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+    items[nextIndex].focus();
+  });
+});
+
+listen(document, "keydown", (event) => {
+  if (event.key === "Escape" && desktopMoreMenu && !desktopMoreMenu.classList.contains("hidden")) {
+    event.preventDefault();
+    setDesktopMoreOpen(false);
+    desktopMoreBtn?.focus();
+  }
+});
+listen(document, "pointerdown", (event) => {
+  if (!desktopMoreMenu || desktopMoreMenu.classList.contains("hidden")) return;
+  if (event.target instanceof Element && !desktopPrimaryNav?.contains(event.target)) setDesktopMoreOpen(false);
+});
+
+// ---- 团团首次引导 / 使用说明：仅使用本地静态内容，不自动触发模型调用 ----
+const ONBOARDING_KEY = "umami_onboarding_seen_v1";
+const onboardingDrawer = document.getElementById("onboarding-drawer");
+const onboardingSheet = onboardingDrawer?.querySelector(".onboarding-sheet");
+const onboardingSteps = onboardingDrawer ? [...onboardingDrawer.querySelectorAll("[data-onboarding-step]")] : [];
+const onboardingStepCount = document.getElementById("onboarding-step-count");
+const onboardingStepLabel = document.getElementById("onboarding-step-label");
+const onboardingProgressBar = document.getElementById("onboarding-progress-bar");
+const onboardingBack = document.getElementById("onboarding-back");
+const onboardingNext = document.getElementById("onboarding-next");
+const onboardingClose = document.getElementById("onboarding-close");
+const onboardingSkip = document.getElementById("onboarding-skip");
+const onboardingStepLabels = ["认识团团", "开始记录", "让生活顺起来"];
+let onboardingIndex = 0;
+let onboardingReturnFocus = null;
+
+function onboardingWasSeen() {
+  try { return localStorage.getItem(ONBOARDING_KEY) === "1"; } catch { return false; }
+}
+
+function markOnboardingSeen() {
+  try { localStorage.setItem(ONBOARDING_KEY, "1"); } catch { /* 本地存储不可用时仍允许继续使用 */ }
+}
+
+function renderOnboardingStep() {
+  if (!onboardingDrawer || !onboardingSteps.length) return;
+  const last = onboardingSteps.length - 1;
+  onboardingSteps.forEach((step, index) => {
+    const active = index === onboardingIndex;
+    step.classList.toggle("hidden", !active);
+    step.setAttribute("aria-hidden", active ? "false" : "true");
+  });
+  if (onboardingStepCount) onboardingStepCount.textContent = `${String(onboardingIndex + 1).padStart(2, "0")} / ${String(onboardingSteps.length).padStart(2, "0")}`;
+  if (onboardingStepLabel) onboardingStepLabel.textContent = onboardingStepLabels[onboardingIndex] || "使用说明";
+  if (onboardingProgressBar) onboardingProgressBar.style.width = `${((onboardingIndex + 1) / onboardingSteps.length) * 100}%`;
+  if (onboardingBack) onboardingBack.disabled = onboardingIndex === 0;
+  if (onboardingNext) onboardingNext.innerHTML = onboardingIndex === last ? '开始使用 <span aria-hidden="true">→</span>' : '下一步 <span aria-hidden="true">→</span>';
+}
+
+function closeOnboarding(markSeen = true, restoreFocus = true) {
+  if (!onboardingDrawer || onboardingDrawer.classList.contains("hidden")) return;
+  if (markSeen) markOnboardingSeen();
+  onboardingDrawer.classList.add("hidden");
+  document.body.classList.remove("onboarding-open");
+  if (appShell) appShell.inert = false;
+  const focus = onboardingReturnFocus;
+  onboardingReturnFocus = null;
+  if (restoreFocus && focus && typeof focus.focus === "function" && document.contains(focus)) focus.focus();
+}
+
+function openOnboardingDrawer() {
+  if (!onboardingDrawer || !onboardingSheet) {
+    showAppStatus("使用说明暂不可用");
+    return false;
+  }
+  onboardingReturnFocus = document.activeElement;
+  onboardingIndex = 0;
+  renderOnboardingStep();
+  onboardingDrawer.classList.remove("hidden");
+  document.body.classList.add("onboarding-open");
+  if (appShell) appShell.inert = true;
+  requestAnimationFrame(() => {
+    const focus = onboardingSheet.querySelector(FOCUSABLE);
+    (focus || onboardingSheet).focus();
+  });
+  requestAnimationFrame(() => {
+    const onboardingPet = document.getElementById("onboarding-pet");
+    if (onboardingPet && window.UmamiPet && !onboardingPet.dataset.petReady) {
+      window.UmamiPet.create(onboardingPet, { draggable: false, bubble: false });
+      onboardingPet.dataset.petReady = "1";
+    }
+  });
+  return true;
+}
+
+function onboardingNavigate(view, kind) {
+  closeOnboarding(true, false);
+  if (kind) {
+    focusRecord(kind);
+    return;
+  }
+  if (view === "chat") openTuntunChat();
+  else if (view) showView(view);
+}
+
+if (onboardingDrawer) {
+  listen(onboardingClose, "click", () => closeOnboarding());
+  listen(onboardingSkip, "click", () => closeOnboarding());
+  listen(onboardingBack, "click", () => {
+    if (onboardingIndex > 0) { onboardingIndex -= 1; renderOnboardingStep(); }
+  });
+  listen(onboardingNext, "click", () => {
+    if (onboardingIndex < onboardingSteps.length - 1) { onboardingIndex += 1; renderOnboardingStep(); }
+    else closeOnboarding();
+  });
+  onboardingDrawer.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target.closest("[data-onboarding-record], [data-onboarding-view]") : null;
+    if (!target || !onboardingDrawer.contains(target)) return;
+    onboardingNavigate(target.dataset.onboardingView || "", target.dataset.onboardingRecord || "");
+  });
+  onboardingDrawer.addEventListener("click", (event) => {
+    if (event.target === onboardingDrawer.querySelector(".onboarding-backdrop")) closeOnboarding();
+  });
+  onboardingDrawer.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.preventDefault(); closeOnboarding(); return; }
+    if (event.key !== "Tab" || !onboardingSheet) return;
+    const focusable = [...onboardingSheet.querySelectorAll(FOCUSABLE)].filter((element) => !element.closest(".hidden"));
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  });
+}
+
+listen(document.getElementById("settings-help-btn"), "click", () => {
+  closeModal(settingsModal);
+  openOnboardingDrawer();
+});
+// 默认落在“问团团”，今日总览仍可从主导航进入。
+showView("chat");
+if (!onboardingWasSeen()) openOnboardingDrawer();
+
+function renderAiConsent() {
+  const consent = currentSettings?.aiConsent || { granted: false, grantedAt: null, version: "v1" };
+  const granted = !!consent?.granted;
+  const state = document.getElementById("ai-consent-state");
+  const detail = document.getElementById("ai-consent-detail");
+  const grant = document.getElementById("ai-consent-grant");
+  const revoke = document.getElementById("ai-consent-revoke");
+  if (state) { state.textContent = granted ? "已授权" : "未授权"; state.classList.toggle("granted", granted); }
+  if (detail) detail.textContent = granted ? `版本 ${consent.version} · 授权时间 ${consent.grantedAt ? new Date(consent.grantedAt).toLocaleString() : "—"}` : "未授权时仍可使用本地记录、导入导出和结构化页面。";
+  if (grant) grant.classList.toggle("hidden", granted);
+  if (revoke) revoke.classList.toggle("hidden", !granted);
+  const banner = document.getElementById("ai-consent-banner");
+  if (banner) {
+    const dismissed = sessionStorage.getItem("aiConsentBannerDismissed") === "1";
+    banner.classList.toggle("hidden", granted || dismissed);
+  }
+  if (tutorialConsent) tutorialConsent.textContent = granted ? "已授权 AI 数据使用 · 本次会发送菜名、冰箱食材与口味偏好给当前模型提供商" : "开小灶需要先完成一次 AI 数据授权；本地手写教程不受影响。";
+  const policies = currentSettings?.aiDataPolicies || [];
+  const policy = (feature) => policies.find((item) => item.feature === feature);
+  const recommendation = policy("recommendation");
+  const analysis = policy("analysis");
+  const fridge = policy("fridge");
+  const provider = `${currentSettings?.modelName || "当前模型"} / ${currentSettings?.model || "默认模型"}`;
+  const categories = (item) => (item?.categories || []).map((value) => escapeHtml(value)).join("、") || "本次功能所需的数据";
+  const recommendationText = document.getElementById("recommend-policy-text"); if (recommendationText) recommendationText.innerHTML = `生成推荐时，会把${categories(recommendation)}发送给当前模型提供商（<span id="recommend-provider">${escapeHtml(provider)}</span>）。${escapeHtml(recommendation?.estimateNotice || "")}`;
+  const analysisText = document.getElementById("analysis-policy-text"); if (analysisText) analysisText.innerHTML = `生成分析时，会把${categories(analysis)}发送给当前模型提供商（<span id="analysis-provider">${escapeHtml(provider)}</span>）。${escapeHtml(analysis?.estimateNotice || "")}`;
+  const fridgeText = document.getElementById("fridge-ai-policy"); if (fridgeText) fridgeText.textContent = `「AI 保鲜建议」会把${(fridge?.categories || ["冰箱数据"]).join("、")}发送给当前模型提供商。${fridge?.estimateNotice || ""}`;
+}
+
+async function openAiConsentSettings() {
+  const focus = document.getElementById("ai-consent-grant") || providerSelect;
+  switchSettingsTab("model");
+  if (!openModal(settingsModal, focus)) {
+    showAppStatus("设置中心暂不可用");
+    return;
+  }
+  showStatus("正在读取 AI 授权状态…", null);
+  await loadSettings();
+  await loadAiConsent();
+}
+
+async function loadAiConsent() {
+  try {
+    const consent = await apiRequest("/api/v1/settings/ai-consent");
+    currentSettings = { ...(currentSettings || {}), aiConsent: consent };
+    renderAiConsent();
+    updateModelAvailability();
+    showStatus("AI 授权状态已读取", true);
+    return consent;
+  } catch (error) {
+    const message = "授权状态加载失败：" + (error?.message || "未知错误");
+    showStatus(message, false);
+    showAppStatus(message);
+    return null;
+  }
+}
+
+async function setAiConsent(granted) {
+  const grant = document.getElementById("ai-consent-grant");
+  const revoke = document.getElementById("ai-consent-revoke");
+  const active = granted ? grant : revoke;
+  const original = active?.textContent;
+  if (grant) grant.disabled = true;
+  if (revoke) revoke.disabled = true;
+  if (active) active.textContent = granted ? "授权中…" : "撤销中…";
+  showStatus(granted ? "正在开启 AI 数据授权…" : "正在撤销 AI 数据授权…", null);
+  try {
+    const data = await apiRequest("/api/v1/settings/ai-consent", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ granted }) });
+    currentSettings = { ...(currentSettings || {}), aiConsent: data };
+    if (!granted) sessionStorage.removeItem("aiConsentBannerDismissed");
+    renderAiConsent();
+    updateModelAvailability();
+    showStatus(granted ? "AI 数据授权已开启" : "AI 数据授权已撤销，后续模型调用已停止", true);
+    showAppStatus(granted ? "AI 数据授权已开启" : "AI 数据授权已撤销，后续模型调用已停止", true);
+  } catch (e) {
+    const message = "授权设置失败：" + e.message;
+    showStatus(message, false);
+    showAppStatus(message);
+  } finally {
+    if (grant) grant.disabled = false;
+    if (revoke) revoke.disabled = false;
+    if (active && original) active.textContent = original;
+    renderAiConsent();
   }
 }
 
 // 根据当前模型是否已配置，控制引导条与依赖模型的按钮可用性。
 function updateModelAvailability() {
   const configured = !!(currentSettings && currentSettings.modelConfigured);
+  const consent = !!(currentSettings && currentSettings.aiConsent && currentSettings.aiConsent.granted);
   const banner = document.getElementById("model-guidance");
   if (banner) {
     const dismissed = sessionStorage.getItem("guidanceDismissed") === "1";
     banner.classList.toggle("hidden", configured || dismissed);
   }
-  for (const id of ["recommend-btn", "analysis-btn", "fridge-ai-btn"]) {
+  for (const id of ["recommend-btn", "analysis-btn", "fridge-ai-btn", "today-recommend-link", "today-analysis-link", "t-generate"]) {
     const b = document.getElementById(id);
-    if (b) b.disabled = !configured;
+    if (b) b.disabled = !(configured && consent);
   }
+  renderAiConsent();
 }
 
 function renderKeyHint() {
+  if (!providerSelect || !apiKeyInput || !customFields || !modelField) return;
   const p = providerSelect.value;
   const has = currentSettings && currentSettings.hasKey && currentSettings.hasKey[p];
   apiKeyInput.placeholder = has ? "已保存 key（留空则不修改）" : "请输入该模型的 API Key";
@@ -3473,6 +4083,7 @@ function renderKeyHint() {
 }
 
 async function populateModelSelect() {
+  if (!providerSelect || !modelSelect) return;
   const provider = providerSelect.value;
   if (provider === "custom") { modelSelect.innerHTML = ""; return; }
   if (!modelCatalog) {
@@ -3491,25 +4102,36 @@ async function populateModelSelect() {
 }
 
 function showStatus(msg, ok) {
+  if (!settingsStatus) return;
   settingsStatus.textContent = msg;
   settingsStatus.className = "settings-status" + (ok === true ? " ok" : ok === false ? " err" : "");
 }
 
-settingsBtn.addEventListener("click", () => {
-  loadSettings();
-  openModal(settingsModal, providerSelect);
-});
+function openSettings() {
+  if (!openModal(settingsModal, providerSelect)) {
+    showAppStatus("设置中心暂不可用");
+    return;
+  }
+  showStatus("正在读取设置…", null);
+  void loadSettings();
+}
 
-settingsClose.addEventListener("click", () => closeModal(settingsModal));
-document.getElementById("theme-select").addEventListener("change", (e) => { applyTheme(e.target.value); syncThemeToServer(e.target.value); });
-document.getElementById("ambient-select").addEventListener("change", (e) => {
+listen(settingsBtn, "click", openSettings);
+
+listen(document.getElementById("ai-consent-open-btn"), "click", openAiConsentSettings);
+listen(document.getElementById("ai-consent-grant"), "click", () => setAiConsent(true));
+listen(document.getElementById("ai-consent-revoke"), "click", () => setAiConsent(false));
+
+listen(settingsClose, "click", () => closeModal(settingsModal));
+listen(document.getElementById("theme-select"), "change", (e) => { applyTheme(e.target.value); syncThemeToServer(e.target.value); });
+listen(document.getElementById("ambient-select"), "change", (e) => {
   applyAmbient(e.target.value);
   localStorage.setItem(AMBIENT_KEY, e.target.value);
   showAppStatus(e.target.value === "off" ? "氛围效果已关闭" : e.target.value === "reduced" ? "氛围效果已减弱" : "氛围效果已恢复标准", true);
 });
-providerSelect.addEventListener("change", () => { renderKeyHint(); populateModelSelect(); });
+listen(providerSelect, "change", () => { renderKeyHint(); populateModelSelect(); });
 
-testBtn.addEventListener("click", async () => {
+listen(testBtn, "click", async () => {
   const provider = providerSelect.value;
   const key = apiKeyInput.value.trim();
   showStatus("测试中…", null);
@@ -3531,7 +4153,7 @@ testBtn.addEventListener("click", async () => {
   }
 });
 
-saveBtn.addEventListener("click", async () => {
+listen(saveBtn, "click", async () => {
   const modelName = providerSelect.value;
   const apiKey = apiKeyInput.value.trim();
   showStatus("保存中…", null);
@@ -3608,18 +4230,29 @@ document.addEventListener("error", (e) => {
 
 // 首屏启动：拉取模型/主题配置，应用主题并刷新功能可用性。
 (function bootstrapSettings() {
-  fetch("/api/settings").then((r) => r.json()).then((s) => {
+  fetch("/api/settings").then(async (r) => {
+    const payload = await r.json();
+    if (!r.ok) throw new Error(payload?.error?.message || payload?.message || `请求失败（${r.status}）`);
+    if (payload?.ok === false) throw new Error(payload.error?.message || payload.message || "设置请求失败");
+    return payload?.ok === true ? payload.data : payload;
+  }).then((s) => {
     currentSettings = s;
     if (s.uiTheme) applyTheme(s.uiTheme);
+    renderAiConsent();
     updateModelAvailability();
     refreshMapsBanner();
     renderExternalServices();
-  }).catch(() => {});
+  }).catch((error) => {
+    const message = "设置加载失败：" + (error?.message || "未知错误");
+    showAppStatus(message);
+    renderAiConsent();
+    updateModelAvailability();
+  });
 })();
 
 const guidanceSettingsBtn = document.getElementById("guidance-settings-btn");
 if (guidanceSettingsBtn) {
-  guidanceSettingsBtn.addEventListener("click", () => { loadSettings(); openModal(settingsModal, providerSelect); });
+  listen(guidanceSettingsBtn, "click", openSettings);
 }
 
 const guidanceCloseBtn = document.getElementById("guidance-close");
@@ -3630,6 +4263,12 @@ if (guidanceCloseBtn) {
     sessionStorage.setItem("guidanceDismissed", "1");
   });
 }
+
+const aiConsentCloseBtn = document.getElementById("ai-consent-close");
+listen(aiConsentCloseBtn, "click", () => {
+  document.getElementById("ai-consent-banner")?.classList.add("hidden");
+  sessionStorage.setItem("aiConsentBannerDismissed", "1");
+});
 
 // ---- 收藏 / 历史 模态框 ----
 const favoritesModal = document.getElementById("favorites-modal");
@@ -3999,7 +4638,7 @@ const tutorialsStatus = document.getElementById("tutorials-status");
 const tutorialForm = document.getElementById("tutorial-form");
 const tutorialDish = document.getElementById("t-dish");
 const tutorialServings = document.getElementById("t-servings");
-const tutorialConsent = document.getElementById("t-consent");
+const tutorialConsent = document.getElementById("tutorial-consent-status");
 const tutorialGenerate = document.getElementById("t-generate");
 const tutorialFilters = document.getElementById("tutorial-filters");
 const tutorialSearch = document.getElementById("tutorial-search");
@@ -4029,10 +4668,7 @@ function setTutorialsStatus(message, ok) {
 }
 
 // 同意勾选前不允许发起生成（与推荐/分析弹窗同一诚实约束）
-if (tutorialConsent && tutorialGenerate) {
-  tutorialGenerate.disabled = !tutorialConsent.checked;
-  tutorialConsent.addEventListener("change", () => { tutorialGenerate.disabled = !tutorialConsent.checked; });
-}
+if (tutorialConsent && tutorialGenerate) tutorialGenerate.disabled = true;
 
 function tutorialMeal(t) {
   const steps = t && t.steps && typeof t.steps === "object" ? t.steps : {};
@@ -4266,8 +4902,8 @@ function openTutorialEditor(t) {
   openModal(tutorialEditorModal, editorTitle);
 }
 if (tutorialNewBtn) tutorialNewBtn.addEventListener("click", () => openTutorialEditor(null));
-document.getElementById("editor-add-ingredient").addEventListener("click", () => editorIngredients.appendChild(editorIngredientRow(null)));
-document.getElementById("tutorial-editor-close").addEventListener("click", () => closeModal(tutorialEditorModal));
+listen(document.getElementById("editor-add-ingredient"), "click", () => editorIngredients?.appendChild(editorIngredientRow(null)));
+listen(document.getElementById("tutorial-editor-close"), "click", () => closeModal(tutorialEditorModal));
 
 function setEditorStatus(message, ok) {
   editorStatus.textContent = message;
@@ -4318,7 +4954,8 @@ if (tutorialForm) tutorialForm.addEventListener("submit", async (e) => {
   const dish = (tutorialDish.value || "").trim();
   if (!dish) { tutorialDish.focus(); setTutorialsStatus("请先填写想学的菜名"); return; }
   const servings = Number(tutorialServings.value);
-  const body = { privacyConsent: true, dish };
+  if (!currentSettings?.aiConsent?.granted) { openAiConsentSettings(); return; }
+  const body = { dish };
   if (Number.isInteger(servings) && servings >= 1 && servings <= 20) body.servings = servings;
   tutorialGenerate.disabled = true;
   const original = tutorialGenerate.textContent;
@@ -4339,7 +4976,7 @@ if (tutorialForm) tutorialForm.addEventListener("submit", async (e) => {
   } catch (err) {
     setTutorialsStatus("生成失败：" + err.message);
   } finally {
-    tutorialGenerate.disabled = !tutorialConsent.checked;
+    tutorialGenerate.disabled = !currentSettings?.aiConsent?.granted;
     tutorialGenerate.textContent = original;
   }
 });
@@ -4466,9 +5103,10 @@ function refreshMapsBanner() {
 }
 
 if (mapsConnectBtn) mapsConnectBtn.addEventListener("click", () => {
-  loadSettings();
-  switchSettingsTab("services");
   openModal(settingsModal, document.querySelector('.service-card[data-service="baidu_map"] .service-key'));
+  switchSettingsTab("services");
+  showStatus("正在读取外部服务设置…", null);
+  void loadSettings();
 });
 if (mapsBannerClose) mapsBannerClose.addEventListener("click", () => {
   mapsBanner.classList.add("hidden");
@@ -4543,7 +5181,11 @@ if (exportBtn) exportBtn.addEventListener("click", async () => {
     exportBtn.disabled = true; exportBtn.textContent = "导出中…";
     const res = await fetch("/api/v1/export");
     if (!res.ok) throw new Error("导出失败");
-    const blob = await res.blob();
+    const envelope = await res.json();
+    if (!envelope.ok) throw new Error(envelope.error?.message || "导出失败");
+    const bundle = envelope.data;
+    bundle.clientState = { boardPositions: loadBoardPositions(), hiddenCards: Object.fromEntries([...loadHiddenBoardCards()].map((key) => [key, true])), theme: document.documentElement.dataset.theme || "dark" };
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -4553,6 +5195,28 @@ if (exportBtn) exportBtn.addEventListener("click", async () => {
     showAppStatus("数据已导出", true);
   } catch (e) { showAppStatus("导出失败：" + e.message); }
   finally { exportBtn.disabled = false; exportBtn.textContent = original; }
+});
+
+const importBtn = document.getElementById("import-btn");
+const importInput = document.getElementById("import-input");
+importBtn?.addEventListener("click", () => importInput?.click());
+importInput?.addEventListener("change", async () => {
+  const file = importInput.files?.[0]; if (!file) return;
+  try {
+    const bundle = JSON.parse(await file.text());
+    const preview = await apiRequest("/api/v1/import/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bundle) });
+    const total = Object.values(preview.counts || {}).reduce((sum, item) => sum + Number(item.incoming || 0), 0);
+    const conflicts = Object.values(preview.counts || {}).reduce((sum, item) => sum + Number(item.conflicts || 0), 0);
+    if (!window.confirm(`将预览并合并 ${total} 条数据；其中 ${conflicts} 条 ID 冲突会重新分配本地 ID。现有数据不会被覆盖。继续吗？`)) return;
+    const result = await apiRequest("/api/v1/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bundle) });
+    if (result.clientState) {
+      localStorage.setItem(BOARD_POS_KEY, JSON.stringify(result.clientState.boardPositions || {}));
+      localStorage.setItem(BOARD_HIDDEN_KEY, JSON.stringify(Object.keys(result.clientState.hiddenCards || {})));
+    }
+    showAppStatus(`导入完成：新增 ${Object.values(result.added || {}).reduce((sum, value) => sum + Number(value), 0)} 条，冲突 ${result.conflictTotal || 0} 条`, true);
+    await loadToday(); refreshAfterDataChange();
+  } catch (e) { showAppStatus("导入失败：" + e.message); }
+  finally { importInput.value = ""; }
 });
 
 // 新模态框：点击遮罩或 Esc 关闭

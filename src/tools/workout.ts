@@ -19,14 +19,14 @@ export function createWorkoutTools(db: RecipeDB): AgentTool<any>[] {
       parameters: LogWorkoutSchema,
       execute: async (_id, params) => {
         const p = params as Static<typeof LogWorkoutSchema>;
-        db.addWorkout(p.date ?? todayISO(), p.activity_type, p.duration_min ?? 30, p.detail ?? "");
+        const id = db.addWorkout(p.date ?? todayISO(), p.activity_type, p.duration_min ?? 30, p.detail ?? "");
         return {
           content: [
             text(
               `已记录训练：${p.activity_type}${p.duration_min ? " " + p.duration_min + " 分钟" : ""}`,
             ),
           ],
-          details: p,
+          details: { ...p, id },
         };
       },
     },

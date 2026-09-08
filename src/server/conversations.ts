@@ -14,6 +14,7 @@ export interface ConversationAgentOptions {
   model: Model<any>;
   getApiKey: (provider: string) => string | undefined;
   onProposal: (proposal: import("../db/database").AgentActionProposal) => void;
+  onCommit?: (action: import("../db/database").AgentActionProposal) => void;
 }
 
 export type ConversationAgentFactory = (options: ConversationAgentOptions) => Agent;
@@ -96,6 +97,7 @@ export class ConversationAgentManager {
       model: initialModel,
       getApiKey: () => runtime.apiKey || undefined,
       onProposal: (proposal) => runtime.currentWriter?.({ type: "action_proposed", action: proposal }),
+      onCommit: (action) => runtime.currentWriter?.({ type: "action_committed", action }),
     });
     runtime.agent.subscribe((event) => {
       const writer = runtime.currentWriter;
@@ -125,6 +127,7 @@ export class ConversationAgentManager {
     if (text.length > 100_000) return sseResponseError("VALIDATION_ERROR", "text 不能超过 100000 个字符", 422);
     if (imageBase64 && !ALLOWED_IMAGE_TYPES.has(mimeType)) return sseResponseError("UNSUPPORTED_IMAGE", "仅支持 JPEG、PNG 和 WebP 图片", 415);
     if (imageBase64 && Math.ceil(imageBase64.length * 3 / 4) > MAX_IMAGE_BYTES) return sseResponseError("IMAGE_TOO_LARGE", "图片不能超过 5 MiB", 413);
+    if (!this.settings.getAiConsent().granted) return sseResponseError("AI_CONSENT_REQUIRED", "请先在设置中心完成一次 AI 数据授权", 428);
 
     let model: Model<any>;
     const providerName = this.settings.getModelName();
@@ -218,6 +221,7 @@ export class ConversationAgentManager {
     const apiKey = this.settings.getKey(providerName);
     let model: Model<any> | null = null;
     try { model = getModelByName(this.models, this.settings, providerName); } catch { model = null; }
+    if (!this.settings.getAiConsent().granted) return { conversationId, userMessageId, modelError: "AI_CONSENT_REQUIRED：已记录提醒，但未发送用户内容" };
     if (!model || !apiKey) return { conversationId, userMessageId, modelError: `模型 "${providerName}" 未配置，已记录提醒但未生成回复` };
     const snapshot = { model, apiKey };
     const runtime = this.runtime(conversationId, snapshot.model);

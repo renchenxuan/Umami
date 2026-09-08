@@ -27,6 +27,7 @@
   <symbol id="i-basket" viewBox="0 0 24 24"><path d="M10 14a2 2 0 1 0 4 0a2 2 0 0 0 -4 0 M5.001 8h13.999a2 2 0 0 1 1.977 2.304l-1.255 7.152a3 3 0 0 1 -2.966 2.544h-9.512a3 3 0 0 1 -2.965 -2.544l-1.255 -7.152a2 2 0 0 1 1.977 -2.304z M17 10l-2 -6 M7 10l2 -6"/></symbol>
   <symbol id="i-cut" viewBox="0 0 24 24"><path d="M7 17m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M17 17m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0 M9.15 14.85l8.85 -10.85 M6 4l8.85 10.85"/></symbol>
   <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 10.941c2.333 -3.308 .167 -7.823 -1 -8.941c0 3.395 -2.235 5.299 -3.667 6.706c-1.43 1.408 -2.333 3.621 -2.333 5.588c0 3.704 3.134 6.706 7 6.706s7 -3.002 7 -6.706c0 -1.712 -1.232 -4.403 -2.333 -5.588c-2.084 3.353 -3.257 3.353 -4.667 2.235"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M20.84 8.56c0 5.24-8.84 10.44-8.84 10.44S3.16 13.8 3.16 8.56A4.56 4.56 0 0 1 12 6.15a4.56 4.56 0 0 1 8.84 2.41Z"/></symbol>
   <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7 M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3 M9.7 17l4.6 0"/></symbol>
   <symbol id="i-alert-triangle" viewBox="0 0 24 24"><path d="M12 9v4 M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z M12 16h.01"/></symbol>
   <symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M6.5 7h11 M6.5 17h11 M6 20v-2a6 6 0 1 1 12 0v2a1 1 0 0 1 -1 1h-10a1 1 0 0 1 -1 -1z M6 4v2a6 6 0 1 0 12 0v-2a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1z"/></symbol>
@@ -40,7 +41,7 @@
   <div class="bg-scene" aria-hidden="true"></div>
   <div class="app">
     <aside class="sidebar">
-      <button id="new-conv-btn" class="new-conv-btn">＋ 新对话</button>
+      <button id="new-conv-btn" class="new-conv-btn" type="button">＋ 新对话</button>
       <input id="conversation-search" class="conversation-search" type="text" placeholder="搜索会话…" aria-label="搜索会话" />
       <div id="conversation-list" class="conversation-list"></div>
     </aside>
@@ -66,48 +67,104 @@
           </div>
         </div>
         <nav class="nav-wrap" aria-label="主导航">
+          <div id="desktop-primary-nav" class="desktop-primary-nav" role="navigation" aria-label="桌面主导航">
+            <div class="desktop-nav-group desktop-nav-group-main" role="group" aria-label="今日与记录">
+              <button type="button" class="desktop-nav-btn active" data-view="board" aria-label="今日总览">
+                <svg class="desktop-nav-icon ui-icon" aria-hidden="true"><use href="#i-note" /></svg>
+                <span class="desktop-nav-label">今日</span>
+              </button>
+              <button type="button" class="desktop-nav-btn desktop-nav-btn-action" data-quick-record="1" aria-label="快速记录">
+                <svg class="desktop-nav-icon ui-icon" aria-hidden="true"><use href="#i-pencil" /></svg>
+                <span class="desktop-nav-label">快速记录</span>
+                <span class="desktop-nav-pip" aria-hidden="true"></span>
+              </button>
+            </div>
+            <span class="desktop-nav-divider" role="separator" aria-hidden="true"></span>
+            <div class="desktop-nav-group desktop-nav-group-space" role="group" aria-label="厨房与团团">
+              <button type="button" class="desktop-nav-btn" data-view="fridge" aria-label="打开冰箱">
+                <svg class="desktop-nav-icon ui-icon" aria-hidden="true"><use href="#i-snowflake" /></svg>
+                <span class="desktop-nav-label">冰箱</span>
+              </button>
+              <button type="button" class="desktop-nav-btn desktop-nav-btn-copilot" data-view="chat" aria-label="打开问团团">
+                <svg class="desktop-nav-icon ui-icon" aria-hidden="true"><use href="#i-bulb" /></svg>
+                <span class="desktop-nav-label">问团团</span>
+              </button>
+              <button type="button" id="desktop-more-btn" class="desktop-nav-btn desktop-nav-btn-more" aria-expanded="false" aria-haspopup="true" aria-controls="desktop-more-menu">
+                <svg class="desktop-nav-icon ui-icon" aria-hidden="true"><use href="#i-basket" /></svg>
+                <span class="desktop-nav-label">更多</span>
+                <span class="desktop-nav-chevron" aria-hidden="true">⌄</span>
+              </button>
+            </div>
+            <div id="desktop-more-menu" class="desktop-more-menu hidden" role="menu" aria-label="更多功能">
+              <div class="desktop-menu-head">
+                <span class="desktop-menu-head-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-basket" /></svg></span>
+                <span><strong>更多空间</strong><small>把生活整理得更顺手</small></span>
+              </div>
+              <div class="desktop-menu-section">
+                <span class="desktop-menu-section-label">记录与厨房</span>
+                <div class="desktop-menu-grid">
+                  <button type="button" data-view="diet" role="menuitem"><span class="desktop-menu-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-tools-kitchen" /></svg></span><span class="desktop-menu-copy"><strong>饮食</strong><small>餐食与热量</small></span><span class="desktop-menu-arrow" aria-hidden="true">↗</span></button>
+                  <button type="button" data-view="tutorials" role="menuitem"><span class="desktop-menu-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-chef-hat" /></svg></span><span class="desktop-menu-copy"><strong>开小灶</strong><small>手把手做菜</small></span><span class="desktop-menu-arrow" aria-hidden="true">↗</span></button>
+                </div>
+              </div>
+              <div class="desktop-menu-section">
+                <span class="desktop-menu-section-label">身体与工作台</span>
+                <div class="desktop-menu-grid">
+                  <button type="button" data-view="fitness" role="menuitem"><span class="desktop-menu-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-barbell" /></svg></span><span class="desktop-menu-copy"><strong>训练</strong><small>运动记录</small></span><span class="desktop-menu-arrow" aria-hidden="true">↗</span></button>
+                  <button type="button" data-view="profile" role="menuitem"><span class="desktop-menu-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-scale" /></svg></span><span class="desktop-menu-copy"><strong>健康档案</strong><small>身体与目标</small></span><span class="desktop-menu-arrow" aria-hidden="true">↗</span></button>
+                  <button type="button" data-action="organize-board" role="menuitem"><span class="desktop-menu-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-note" /></svg></span><span class="desktop-menu-copy"><strong>整理看板</strong><small>恢复自由看板</small></span><span class="desktop-menu-arrow" aria-hidden="true">↗</span></button>
+                  <button type="button" data-action="schedules" role="menuitem"><span class="desktop-menu-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-alarm" /></svg></span><span class="desktop-menu-copy"><strong>自动化</strong><small>提醒与计划</small></span><span class="desktop-menu-arrow" aria-hidden="true">↗</span></button>
+                </div>
+              </div>
+              <div class="desktop-menu-footer">
+                <button type="button" data-action="onboarding" role="menuitem"><svg class="ui-icon" aria-hidden="true"><use href="#i-note" /></svg> 使用说明</button>
+                <button type="button" data-action="skills" role="menuitem"><svg class="ui-icon" aria-hidden="true"><use href="#i-bulb" /></svg> 技能中心</button>
+                <button type="button" data-action="settings" role="menuitem"><svg class="ui-icon" aria-hidden="true"><use href="#i-key" /></svg> 设置中心</button>
+              </div>
+            </div>
+          </div>
           <div class="nav" role="tablist">
-            <button id="tab-board" class="nav-btn" data-view="board" role="tab" aria-selected="false" aria-controls="board" tabindex="-1">
+            <button id="tab-board" class="nav-btn" type="button" data-view="board" role="tab" aria-selected="false" aria-controls="board" tabindex="-1">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
               <span>今日总览</span>
             </button>
-            <button id="tab-fridge" class="nav-btn" data-view="fridge" role="tab" aria-selected="false" aria-controls="fridge" tabindex="-1">
+            <button id="tab-fridge" class="nav-btn" type="button" data-view="fridge" role="tab" aria-selected="false" aria-controls="fridge" tabindex="-1">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v18M4 12h16M6.3 6.3l11.4 11.4M17.7 6.3L6.3 17.7"/></svg>
               <span>冰箱</span>
             </button>
-            <button id="tab-chat" class="nav-btn active" data-view="chat" role="tab" aria-selected="true" aria-controls="messages" tabindex="0">
+            <button id="tab-chat" class="nav-btn active" type="button" data-view="chat" role="tab" aria-selected="true" aria-controls="messages" tabindex="0">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               <span>问团团</span>
             </button>
             <span class="nav-divider" role="separator" aria-hidden="true"></span>
-            <button id="tab-diet" class="nav-btn" data-view="diet" role="tab" aria-selected="false" aria-controls="diet" tabindex="-1">
+            <button id="tab-diet" class="nav-btn" type="button" data-view="diet" role="tab" aria-selected="false" aria-controls="diet" tabindex="-1">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3v7"/></svg>
               <span>饮食</span>
             </button>
-            <button id="tab-tutorials" class="nav-btn" data-view="tutorials" role="tab" aria-selected="false" aria-controls="tutorials" tabindex="-1" aria-label="开小灶（手把手教做菜）">
+            <button id="tab-tutorials" class="nav-btn" type="button" data-view="tutorials" role="tab" aria-selected="false" aria-controls="tutorials" tabindex="-1" aria-label="开小灶（手把手教做菜）">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18h12v3H6z"/><path d="M6 18a7 7 0 1 1 12-5.3A4.5 4.5 0 0 0 17 4a4.5 4.5 0 0 0-4.5 4A4.5 4.5 0 0 0 8 4a4.5 4.5 0 0 0-1 8.7A7 7 0 0 1 6 18Z"/></svg>
               <span>开小灶</span>
             </button>
-            <button id="tab-fitness" class="nav-btn" data-view="fitness" role="tab" aria-selected="false" aria-controls="fitness" tabindex="-1">
+            <button id="tab-fitness" class="nav-btn" type="button" data-view="fitness" role="tab" aria-selected="false" aria-controls="fitness" tabindex="-1">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 9h11v6h-11z"/></svg>
               <span>训练</span>
             </button>
-            <button id="tab-profile" class="nav-btn" data-view="profile" role="tab" aria-selected="false" aria-controls="profile" tabindex="-1">
+            <button id="tab-profile" class="nav-btn" type="button" data-view="profile" role="tab" aria-selected="false" aria-controls="profile" tabindex="-1">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               <span>健康档案</span>
             </button>
           </div>
         </nav>
-        <button id="settings-btn" class="settings-btn" title="设置中心" aria-label="打开设置中心">
+        <button id="settings-btn" class="settings-btn" type="button" title="设置中心" aria-label="打开设置中心">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
           </svg>
         </button>
-        <button id="skills-btn" class="skills-btn" title="AI 回答能力" aria-label="打开 AI 回答能力设置">
+        <button id="skills-btn" class="skills-btn" type="button" title="AI 回答能力" aria-label="打开 AI 回答能力设置">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
         </button>
-        <button id="schedules-btn" class="skills-btn" title="自动化中心" aria-label="打开自动化中心">
+        <button id="schedules-btn" class="skills-btn" type="button" title="自动化中心" aria-label="打开自动化中心">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
         </button>
       </header>
@@ -121,6 +178,9 @@
         </div>
         <button id="guidance-settings-btn" class="guidance-btn" type="button">去配置</button>
         <button id="guidance-close" class="guidance-close" type="button" aria-label="关闭提示" title="关闭提示">✕</button>
+      </div>
+      <div id="ai-consent-banner" class="guidance-banner ai-consent-banner hidden" role="status">
+        <span class="guidance-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-key" /></svg></span><div class="guidance-text"><strong>AI 数据授权由你掌控</strong><span>授权后，聊天、识图、推荐、分析和保鲜建议才会把你主动提供的内容发送给当前模型提供商；本地记录始终可用。</span></div><button id="ai-consent-open-btn" class="guidance-btn" type="button">查看并授权</button><button id="ai-consent-close" class="guidance-close" type="button" aria-label="关闭 AI 授权提示" title="关闭提示">✕</button>
       </div>
       <main id="messages" class="messages" aria-label="对话消息"></main>
 
@@ -154,13 +214,13 @@
                   <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/><path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.3h7.6a1.5 1.5 0 0 0 1.5-1.2L20 8H6"/></svg>
                   <span>购物清单</span>
                 </button>
-                <button id="fridge-ai-btn" class="fridge-ai-btn" title="把冰箱清单发给当前模型，得到保鲜推测与食用建议">
+                <button id="fridge-ai-btn" class="fridge-ai-btn" type="button" title="把冰箱清单发给当前模型，得到保鲜推测与食用建议">
                   <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>
                   <span>AI 保鲜建议</span>
                 </button>
               </div>
             </div>
-            <p class="fridge-ai-disclosure">「AI 保鲜建议」不是传感器测量：点击后会把食材名称、数量、备注、存放天数、分区与冷藏/冷冻温度设置发送给当前模型提供商，返回按记录日期推测的保鲜建议。</p>
+            <p id="fridge-ai-policy" class="fridge-ai-disclosure">「AI 保鲜建议」是估算：本次会向当前模型提供商发送冰箱食材、存放时间与温度设置。</p>
 
             <div class="fridge-body">
               <div class="fridge-zone" data-zone="freezer">
@@ -260,7 +320,7 @@
             <input id="t-servings" class="field" type="number" min="1" max="20" placeholder="几人份（可选）" />
             <button id="t-generate" class="primary-btn" type="submit" disabled>生成教学</button>
           </form>
-          <label class="tutorial-consent"><input id="t-consent" type="checkbox" /> 我已了解：生成时会读取冰箱食材与口味偏好发送给当前模型提供商，只发送完成本次教学所需的数据。</label>
+          <p class="tutorial-consent" id="tutorial-consent-status">AI 数据授权状态读取中…</p>
           <div id="tutorials-status" class="settings-status" role="status" aria-live="polite"></div>
           <div id="tutorial-result" class="tutorial-result hidden"></div>
           <div class="tutorial-list-head">
@@ -315,28 +375,89 @@
       </section>
 
       <section id="board" class="board hidden" role="tabpanel" aria-labelledby="tab-board">
-        <div class="board-toolbar">
+        <div id="today-structured" class="today-structured">
+          <div class="today-hero">
+            <div class="today-hero-copy">
+              <p class="eyebrow"><span class="eyebrow-mark" aria-hidden="true"></span>今日 · <span id="today-date">—</span></p>
+              <h2>把今天照顾好</h2>
+              <p>先记下一件事，膳待家会告诉你接下来做什么。</p>
+              <div class="today-hero-note"><span class="today-hero-note-dot" aria-hidden="true"></span><span>一件小事，也值得被好好照顾</span></div>
+              <div class="today-hero-action">
+                <span class="today-action-note">现在最简单的一步</span>
+                <button id="today-primary-record" class="primary-btn" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#i-pencil" /></svg><span>开始记录</span><span class="button-arrow" aria-hidden="true">→</span></button>
+              </div>
+            </div>
+            <section class="today-hero-tuntun today-tuntun-panel" aria-labelledby="today-tuntun-title">
+              <div class="today-tuntun-head">
+                <div><span class="today-panel-kicker">TUNTUN IS HERE</span><h3 id="today-tuntun-title">问团团</h3><p>把下一句话交给熟悉你的团团。</p></div>
+                <span class="today-panel-mark today-panel-mark-ai" aria-hidden="true"><svg class="ui-icon"><use href="#i-bulb" /></svg></span>
+              </div>
+              <div class="today-tuntun-body">
+                <div class="today-tuntun-character">
+                  <div class="today-tuntun-orbit" aria-hidden="true"><div id="today-tuntun-pet" class="today-tuntun-pet"></div></div>
+                  <span class="today-tuntun-presence"><i></i>团团 · 随时在这里</span>
+                </div>
+                <div class="today-tuntun-thread">
+                  <div class="today-tuntun-thread-meta"><span>一段轻松的对话</span><small>现在开始</small></div>
+                  <div class="today-tuntun-bubble assistant"><span class="today-tuntun-bubble-mark">团</span><p>今天想先照顾哪一件？吃什么、练一练，还是看看冰箱。</p></div>
+                  <div class="today-tuntun-bubble user"><p>先从简单的一餐开始。</p></div>
+                  <div class="today-tuntun-bubble assistant"><span class="today-tuntun-bubble-mark">团</span><p>好呀，告诉我你现在有什么食材，我陪你把下一步理清楚。</p></div>
+                  <div class="today-tuntun-prompts">
+                    <button type="button" data-today-prompt="帮我看看今天吃什么">今天吃什么 <span aria-hidden="true">↗</span></button>
+                    <button type="button" data-today-prompt="看看我的冰箱能做什么菜">看看冰箱 <span aria-hidden="true">↗</span></button>
+                  </div>
+                  <button id="today-tuntun-open" class="today-tuntun-cta secondary-btn" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#i-bulb" /></svg><span>去问团团</span><span aria-hidden="true">→</span></button>
+                </div>
+              </div>
+            </section>
+          </div>
+          <div class="today-metrics" id="today-metrics" aria-live="polite"></div>
+          <div class="today-grid">
+            <section class="today-panel today-quick-panel">
+              <div class="today-panel-head"><div><span class="today-panel-kicker">START HERE</span><h3>快速记录</h3><p>复用现有表单，不重复填写。</p></div><span class="today-panel-mark" aria-hidden="true"><svg class="ui-icon"><use href="#i-pencil" /></svg></span></div>
+              <div class="today-quick-actions">
+                <button type="button" data-quick-record="diet"><span class="today-quick-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-tools-kitchen" /></svg></span><span class="today-quick-copy"><strong>饮食</strong><small>记下一餐</small></span><span class="today-quick-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" data-quick-record="fitness"><span class="today-quick-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-barbell" /></svg></span><span class="today-quick-copy"><strong>训练</strong><small>记一次运动</small></span><span class="today-quick-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" data-quick-record="weight"><span class="today-quick-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-scale" /></svg></span><span class="today-quick-copy"><strong>体重</strong><small>更新身体数据</small></span><span class="today-quick-arrow" aria-hidden="true">↗</span></button>
+                <button type="button" data-quick-record="habit"><span class="today-quick-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-heart" /></svg></span><span class="today-quick-copy"><strong>习惯</strong><small>完成一次打卡</small></span><span class="today-quick-arrow" aria-hidden="true">↗</span></button>
+              </div>
+            </section>
+            <section class="today-panel">
+              <div class="today-panel-head"><div><span class="today-panel-kicker">NEXT BEST STEP</span><h3>下一步行动</h3><p>从最值得处理的一件开始。</p></div><span class="today-panel-mark" aria-hidden="true"><svg class="ui-icon"><use href="#i-flame" /></svg></span></div>
+              <div id="today-next-actions" class="today-action-list"></div>
+            </section>
+          </div>
+          <div class="today-grid today-grid-bottom">
+            <section class="today-panel">
+              <div class="today-panel-head"><div><span class="today-panel-kicker">A LITTLE LOG</span><h3>最近记录</h3></div><span class="today-panel-mark" aria-hidden="true"><svg class="ui-icon"><use href="#i-hourglass" /></svg></span></div>
+              <div id="today-activity" class="today-activity-list"></div>
+            </section>
+          </div>
+          <button id="organize-board-btn" class="today-board-link secondary-btn" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#i-note" /></svg><span>整理看板</span><span aria-hidden="true">→</span></button>
+        </div>
+        <div id="board-toolbar" class="board-toolbar hidden">
           <div class="board-toolbar-title">
             <h2>今日总览</h2>
             <p>今天的食材、训练、目标与习惯，一屏看完</p>
           </div>
           <div class="board-toolbar-actions">
-            <button id="recommend-btn" class="board-action-btn primary">
+            <button id="close-organize-board-btn" class="board-action-btn board-action-btn-close" type="button" aria-label="退出整理看板" title="返回今日"><span aria-hidden="true">×</span><span>退出整理</span></button>
+            <button id="recommend-btn" class="board-action-btn primary" type="button">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
               <span>个性化推荐</span>
             </button>
-            <button id="analysis-btn" class="board-action-btn">
+            <button id="analysis-btn" class="board-action-btn" type="button">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="7"/><rect x="12" y="7" width="3" height="11"/><rect x="17" y="13" width="3" height="5"/></svg>
               <span>健康分析</span>
             </button>
-            <button id="add-card-btn" class="board-action-btn">
+            <button id="add-card-btn" class="board-action-btn" type="button">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
               <span>添加</span>
             </button>
-            <button id="restore-board-btn" class="board-action-btn hidden">显示已隐藏卡片</button>
+            <button id="restore-board-btn" class="board-action-btn hidden" type="button">显示已隐藏卡片</button>
           </div>
         </div>
-        <div id="board-canvas" class="board-canvas"></div>
+        <div id="organize-board-shell" class="hidden"><div id="board-canvas" class="board-canvas"></div></div>
       </section>
 
       <footer id="footer" class="footer">
@@ -350,10 +471,10 @@
       </div>
         <div id="preview" class="preview hidden">
           <img id="preview-img" alt="图片预览" />
-          <button id="clear-img" class="clear-img" title="移除图片" aria-label="移除已选择的图片">✕</button>
+          <button id="clear-img" class="clear-img" type="button" title="移除图片" aria-label="移除已选择的图片">✕</button>
         </div>
         <div class="composer">
-          <button id="attach-btn" class="attach-btn" title="上传照片识别食材">
+          <button id="attach-btn" class="attach-btn" type="button" title="上传照片识别食材">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="3" y="3" width="18" height="18" rx="3"></rect>
               <circle cx="8.5" cy="8.5" r="1.5"></circle>
@@ -362,7 +483,7 @@
           </button>
           <input type="file" id="file-input" accept="image/*" hidden />
           <textarea id="input" rows="1" placeholder="告诉我你想吃什么、怎么练，或上传冰箱照片…"></textarea>
-          <button id="send-btn" class="send-btn">发送</button>
+          <button id="send-btn" class="send-btn" type="button">发送</button>
         </div>
       </footer>
     </div>
@@ -372,13 +493,17 @@
     <div class="modal-content" tabindex="-1">
       <div class="modal-header">
         <h2 id="settings-title">设置中心</h2>
-        <button id="settings-close" class="close-btn" aria-label="关闭设置中心">✕</button>
+          <button id="settings-close" class="close-btn" type="button" aria-label="关闭设置中心">✕</button>
       </div>
       <div class="settings-tabs" role="tablist" aria-label="设置分区">
         <button type="button" class="settings-tab active" data-settings-tab="model" role="tab" aria-selected="true">模型</button>
         <button type="button" class="settings-tab" data-settings-tab="services" role="tab" aria-selected="false">外部服务</button>
       </div>
       <div data-settings-panel="model" role="tabpanel" aria-label="模型设置">
+      <section id="ai-consent-settings" class="ai-consent-settings" aria-labelledby="ai-consent-title">
+        <div class="settings-section-head"><div><h3 id="ai-consent-title">AI 数据授权</h3><p>控制“携带你的内容发送给模型”的权限。撤销后，所有模型入口立即停止；固定连接测试不受影响。</p></div><span id="ai-consent-state" class="consent-state">读取中…</span></div>
+        <p id="ai-consent-detail" class="field-hint consent-detail"></p><div class="consent-actions"><button id="ai-consent-grant" class="primary-btn" type="button">授权 AI 使用我的内容</button><button id="ai-consent-revoke" class="secondary-btn" type="button">撤销授权</button></div>
+      </section>
       <label class="field-label">界面主题</label>
       <select id="theme-select" class="field">
         <option value="dark">深色</option>
@@ -423,14 +548,19 @@
         <input type="text" id="model-id-input" class="field" placeholder="如 gpt-4o" />
       </div>
       <div class="settings-actions">
-        <button id="test-btn" class="secondary-btn">测试连接</button>
-        <button id="save-btn" class="primary-btn">保存</button>
+          <button id="test-btn" class="secondary-btn" type="button">测试连接</button>
+          <button id="save-btn" class="primary-btn" type="button">保存</button>
       </div>
       <div id="settings-status" class="settings-status"></div>
       <div class="settings-divider" role="separator"></div>
+      <div class="settings-help-row">
+        <div><strong>第一次使用？</strong><span>让团团再带你看一遍膳待家的使用方式。</span></div>
+        <button id="settings-help-btn" class="secondary-btn" type="button">重新查看使用说明</button>
+      </div>
       <div class="settings-export">
-        <span class="settings-export-label">全部健康数据（食材 / 训练 / 目标 / 会话等）导出为 JSON</span>
+        <span class="settings-export-label">可恢复健康数据包（含完整消息、提醒和冰箱设置；不含任何密钥）</span>
         <button id="export-btn" class="secondary-btn" type="button">导出我的数据</button>
+        <button id="import-btn" class="secondary-btn" type="button">导入并恢复</button><input id="import-input" type="file" accept="application/json,.json" hidden />
       </div>
       </div>
       <div data-settings-panel="services" class="hidden" role="tabpanel" aria-label="外部服务设置">
@@ -504,16 +634,16 @@
     <div class="modal-content" tabindex="-1">
       <div class="modal-header">
         <h2 id="add-card-title">添加卡片</h2>
-        <button id="add-card-close" class="close-btn" aria-label="关闭添加卡片">✕</button>
+        <button id="add-card-close" class="close-btn" type="button" aria-label="关闭添加卡片">✕</button>
       </div>
       <div id="add-card-types" class="add-types">
-        <button class="add-type active" data-type="workouts">健身</button>
-        <button class="add-type" data-type="goals">目标</button>
-        <button class="add-type" data-type="habits">习惯</button>
+        <button type="button" class="add-type active" data-type="workouts">健身</button>
+        <button type="button" class="add-type" data-type="goals">目标</button>
+        <button type="button" class="add-type" data-type="habits">习惯</button>
       </div>
       <div id="add-card-fields" class="add-fields"></div>
       <div class="settings-actions">
-        <button id="add-card-submit" class="primary-btn">添加</button>
+        <button id="add-card-submit" class="primary-btn" type="button">添加</button>
       </div>
       <div id="add-card-status" class="settings-status"></div>
     </div>
@@ -523,7 +653,7 @@
     <div class="modal-content tutorial-editor" tabindex="-1">
       <div class="modal-header">
         <h2 id="tutorial-editor-title">编辑教程</h2>
-        <button id="tutorial-editor-close" class="close-btn" aria-label="关闭教程编辑器">✕</button>
+          <button id="tutorial-editor-close" class="close-btn" type="button" aria-label="关闭教程编辑器">✕</button>
       </div>
       <form id="tutorial-editor-form">
         <label class="field-label">菜名</label>
@@ -554,14 +684,14 @@
     <div class="modal-content recommend-content" tabindex="-1">
       <div class="modal-header">
         <h2 id="recommend-title">个性化推荐</h2>
-        <button id="recommend-close" class="close-btn" aria-label="关闭个性化推荐">✕</button>
+          <button id="recommend-close" class="close-btn" type="button" aria-label="关闭个性化推荐">✕</button>
       </div>
       <div id="recommend-consent" class="recommend-consent">
         <p><strong>发送前请确认数据流向</strong></p>
-        <p>生成推荐时，会把近期身体指标（体重/体脂）、健康目标、饮食偏好、过敏忌口与冰箱现有食材清单发送给当前模型提供商（<span id="recommend-provider">正在读取…</span>）。只发送完成本次推荐所需的数据。</p>
+        <p id="recommend-policy-text">生成推荐时，只发送完成本次推荐所需的数据给当前模型提供商（<span id="recommend-provider">正在读取…</span>）。</p>
         <p>结果是通用健康信息与营养估算，不是医疗建议；若你还没有体重等档案数据，会得到适合久坐人群的普适建议。</p>
-        <label class="recommend-consent-check"><input id="recommend-consent-check" type="checkbox" /> 我已了解并同意本次发送</label>
-        <button id="recommend-generate" class="primary-btn" disabled>同意并生成推荐</button>
+        <p class="recommend-consent-status">本次使用全局 AI 数据授权；你可以在设置中心随时撤销。</p>
+          <button id="recommend-generate" class="primary-btn" type="button" disabled>生成推荐</button>
       </div>
       <div id="recommend-loading" class="recommend-loading hidden" role="status" aria-live="polite">
         <span class="spinner"></span>
@@ -575,17 +705,17 @@
     <div class="modal-content analysis-content">
       <div class="modal-header">
         <h2 id="analysis-title">健康分析</h2>
-        <button id="analysis-close" class="close-btn" aria-label="关闭健康分析">✕</button>
+          <button id="analysis-close" class="close-btn" type="button" aria-label="关闭健康分析">✕</button>
       </div>
       <div id="analysis-tabs" class="analysis-tabs">
-        <button class="analysis-tab active" data-period="daily">今日分析</button>
-        <button class="analysis-tab" data-period="weekly">本周分析</button>
+          <button type="button" class="analysis-tab active" data-period="daily">今日分析</button>
+          <button type="button" class="analysis-tab" data-period="weekly">本周分析</button>
       </div>
       <div id="analysis-consent" class="recommend-consent">
-        <p>生成分析时，会把近期饮食记录（热量为系统估算值）、运动记录、身体数据、健康目标与偏好发送给当前模型提供商（<span id="analysis-provider">正在读取…</span>）。只发送完成本次分析所需的数据。</p>
+        <p id="analysis-policy-text">生成分析时，只发送完成本次分析所需的数据给当前模型提供商（<span id="analysis-provider">正在读取…</span>）。</p>
         <p>分析基于你主动记录的内容，缺记录的部分会按普适情况处理；结果不是医疗诊断。</p>
-        <label class="recommend-consent-check"><input id="analysis-consent-check" type="checkbox" /> 我已了解并同意本次发送</label>
-        <button id="analysis-generate" class="primary-btn" disabled>同意并生成分析</button>
+        <p class="recommend-consent-status">本次使用全局 AI 数据授权；你可以在设置中心随时撤销。</p>
+          <button id="analysis-generate" class="primary-btn" type="button" disabled>生成分析</button>
       </div>
       <div id="analysis-loading" class="recommend-loading hidden" role="status" aria-live="polite">
         <span class="spinner"></span>
@@ -599,7 +729,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2 id="food-modal-title">加入冰箱</h2>
-        <button id="food-modal-close" class="close-btn" aria-label="关闭加入冰箱">✕</button>
+        <button id="food-modal-close" class="close-btn" type="button" aria-label="关闭加入冰箱">✕</button>
       </div>
       <div class="form-row">
         <input id="food-qty" class="field" type="number" min="0" placeholder="数量（可留空）" />
@@ -610,7 +740,7 @@
         <button type="button" class="zone-btn" data-zone="freezer"><svg class="ui-icon" aria-hidden="true"><use href="#i-snowflake"/></svg>冷冻层</button>
       </div>
       <div class="settings-actions">
-        <button id="food-add-btn" class="primary-btn">加入冰箱</button>
+        <button id="food-add-btn" class="primary-btn" type="button">加入冰箱</button>
       </div>
     </div>
   </div>
@@ -619,7 +749,7 @@
     <div class="modal-content zone-modal-content">
       <div class="modal-header">
         <h2 id="zone-modal-title">分区管理</h2>
-        <button id="zone-modal-close" class="close-btn" aria-label="关闭分区管理">✕</button>
+        <button id="zone-modal-close" class="close-btn" type="button" aria-label="关闭分区管理">✕</button>
       </div>
       <p id="zone-modal-sub" class="zone-modal-sub"></p>
       <div id="zone-modal-items" class="zone-modal-items"></div>
@@ -633,7 +763,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2 id="ingredient-modal-title">食材详情</h2>
-        <button id="ingredient-modal-close" class="close-btn" aria-label="关闭食材详情">✕</button>
+        <button id="ingredient-modal-close" class="close-btn" type="button" aria-label="关闭食材详情">✕</button>
       </div>
       <div class="ingredient-detail">
         <img id="ingredient-img" class="ingredient-img" alt="" />
@@ -666,10 +796,10 @@
     <div class="modal-content" tabindex="-1">
       <div class="modal-header">
         <h2 id="skills-title">AI 回答能力</h2>
-        <button id="skills-close" class="close-btn" aria-label="关闭 AI 回答能力设置">✕</button>
+        <button id="skills-close" class="close-btn" type="button" aria-label="关闭 AI 回答能力设置">✕</button>
       </div>
       <p class="skills-desc">选择启用的技能，AI 将据此调整回答方式与专业深度。</p>
-      <div id="skills-list" class="skills-list"></div>
+      <div id="skills-list" class="skills-list" role="group" aria-label="AI 回答能力"></div>
       <div id="skills-status" class="settings-status"></div>
     </div>
   </div>
@@ -678,7 +808,7 @@
     <div class="modal-content" tabindex="-1">
       <div class="modal-header">
         <h2 id="shopping-title">购物清单</h2>
-        <button id="shopping-close" class="close-btn" aria-label="关闭购物清单">✕</button>
+        <button id="shopping-close" class="close-btn" type="button" aria-label="关闭购物清单">✕</button>
       </div>
       <p class="page-desc">缺什么先记下来，买齐一项勾一项。</p>
       <form id="shopping-form" class="shopping-form">
@@ -694,7 +824,7 @@
     <div class="modal-content favorites-content" tabindex="-1">
       <div class="modal-header">
         <h2 id="favorites-title">收藏与菜谱历史</h2>
-        <button id="favorites-close" class="close-btn" aria-label="关闭">✕</button>
+        <button id="favorites-close" class="close-btn" type="button" aria-label="关闭">✕</button>
       </div>
       <div class="fh-tabs">
         <button class="fh-tab active" data-tab="favorites" type="button">我的收藏</button>
@@ -713,7 +843,7 @@
     <div class="modal-content" tabindex="-1">
       <div class="modal-header">
         <h2 id="goals-title">目标管理</h2>
-        <button id="goals-close" class="close-btn" aria-label="关闭">✕</button>
+        <button id="goals-close" class="close-btn" type="button" aria-label="关闭">✕</button>
       </div>
       <p class="page-desc">查看与调整你的健康目标。想新增目标？点下方按钮或直接告诉 AI「帮我设定一个每周跑步 3 次的目标」。</p>
       <div id="goals-list" class="manage-list"></div>
@@ -727,7 +857,7 @@
     <div class="modal-content" tabindex="-1">
       <div class="modal-header">
         <h2 id="habits-title">习惯管理</h2>
-        <button id="habits-close" class="close-btn" aria-label="关闭">✕</button>
+        <button id="habits-close" class="close-btn" type="button" aria-label="关闭">✕</button>
       </div>
       <p class="page-desc">查看与调整你的习惯记录。</p>
       <div id="habits-list" class="manage-list"></div>
@@ -741,7 +871,7 @@
     <div class="modal-content" tabindex="-1">
       <div class="modal-header">
         <h2 id="schedules-title">自动化中心</h2>
-        <button id="schedules-close" class="close-btn" aria-label="关闭">✕</button>
+        <button id="schedules-close" class="close-btn" type="button" aria-label="关闭">✕</button>
       </div>
       <p class="page-desc">到点后提醒会自动出现在对应会话里，AI 会接着给建议。也可以直接告诉 AI「每天晚上六点提醒我吃晚饭」。</p>
       <div id="schedules-list" class="manage-list" aria-live="polite"></div>
@@ -774,6 +904,62 @@
       </form>
       <div id="schedules-status" class="settings-status"></div>
     </div>
+  </div>
+
+  <div id="onboarding-drawer" class="onboarding-drawer hidden" role="dialog" aria-modal="true" aria-labelledby="onboarding-drawer-title">
+    <div class="onboarding-backdrop" data-onboarding-close="true"></div>
+    <aside class="onboarding-sheet" tabindex="-1">
+      <div class="onboarding-header">
+        <div class="onboarding-brand"><span class="onboarding-brand-mark"><svg class="ui-icon" aria-hidden="true"><use href="#i-bulb" /></svg></span><span><small>UMAMI / TUNTUN</small><strong id="onboarding-drawer-title">团团的欢迎信</strong></span></div>
+        <button id="onboarding-close" class="close-btn" type="button" aria-label="关闭使用说明">✕</button>
+      </div>
+      <div class="onboarding-progress" aria-label="使用说明进度">
+        <span id="onboarding-step-count">01 / 03</span>
+        <div class="onboarding-progress-track"><i id="onboarding-progress-bar"></i></div>
+        <span id="onboarding-step-label">认识团团</span>
+      </div>
+      <div class="onboarding-content">
+        <section class="onboarding-step" data-onboarding-step="0">
+          <span class="onboarding-kicker">01 · 先认识一下</span>
+          <h2>团团带你认识膳待家</h2>
+          <p>这里不是一张冷冰冰的表格。团团会陪你把吃饭、运动和身体状态，慢慢放回自己的生活里。</p>
+          <div class="onboarding-welcome-scene">
+            <div class="onboarding-pet-orbit" aria-hidden="true"><div id="onboarding-pet" class="onboarding-pet"></div></div>
+            <div class="onboarding-example-thread">
+              <div class="onboarding-example-meta"><span>团团 · 示例对话</span><small>不会自动发送</small></div>
+              <div class="onboarding-example-bubble assistant"><b>团</b><p>今天想先照顾哪一件？我可以陪你记录一餐、安排一次训练，或者看看冰箱。</p></div>
+              <div class="onboarding-example-bubble user"><p>先从简单的一餐开始。</p></div>
+              <div class="onboarding-example-bubble assistant"><b>团</b><p>好呀，我们从你愿意做的下一步开始。</p></div>
+            </div>
+          </div>
+        </section>
+        <section class="onboarding-step hidden" data-onboarding-step="1" aria-hidden="true">
+          <span class="onboarding-kicker">02 · 先做一件小事</span>
+          <h2>把今天记下来</h2>
+          <p>不用一次填完所有内容。选一个最顺手的入口，膳待家会把记录放回对应页面。</p>
+          <div class="onboarding-record-grid">
+            <button type="button" data-onboarding-record="diet"><span class="onboarding-action-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-tools-kitchen" /></svg></span><strong>饮食</strong><small>记下一餐</small><span aria-hidden="true">↗</span></button>
+            <button type="button" data-onboarding-record="fitness"><span class="onboarding-action-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-barbell" /></svg></span><strong>训练</strong><small>记一次运动</small><span aria-hidden="true">↗</span></button>
+            <button type="button" data-onboarding-record="weight"><span class="onboarding-action-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-scale" /></svg></span><strong>体重</strong><small>更新身体数据</small><span aria-hidden="true">↗</span></button>
+            <button type="button" data-onboarding-record="habit"><span class="onboarding-action-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-heart" /></svg></span><strong>习惯</strong><small>完成一次打卡</small><span aria-hidden="true">↗</span></button>
+          </div>
+        </section>
+        <section class="onboarding-step hidden" data-onboarding-step="2" aria-hidden="true">
+          <span class="onboarding-kicker">03 · 让生活顺起来</span>
+          <h2>需要的时候，团团就在</h2>
+          <p>冰箱帮你记住食材，开小灶陪你做菜，问团团帮你把下一步说清楚。所有 AI 对话都会先经过你的授权。</p>
+          <div class="onboarding-destination-list">
+            <button type="button" data-onboarding-view="fridge"><span class="onboarding-destination-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-snowflake" /></svg></span><span><strong>去看看冰箱</strong><small>管理食材与保鲜提醒</small></span><span aria-hidden="true">↗</span></button>
+            <button type="button" data-onboarding-view="chat"><span class="onboarding-destination-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-bulb" /></svg></span><span><strong>去问团团</strong><small>打开对话，但不会替你自动发送</small></span><span aria-hidden="true">↗</span></button>
+          </div>
+          <div class="onboarding-local-note"><svg class="ui-icon" aria-hidden="true"><use href="#i-key" /></svg><span>你的记录保存在本机；AI 数据授权可以随时在设置中心撤销。</span></div>
+        </section>
+      </div>
+      <div class="onboarding-footer">
+        <button id="onboarding-skip" class="secondary-btn" type="button">先自己看看</button>
+        <div class="onboarding-footer-actions"><button id="onboarding-back" class="secondary-btn" type="button">上一步</button><button id="onboarding-next" class="primary-btn" type="button">下一步 <span aria-hidden="true">→</span></button></div>
+      </div>
+    </aside>
   </div>
 
   <!-- 本地内置：本地优先应用不依赖公网脚本；文件缺失时自动回退到内置轻量渲染 -->

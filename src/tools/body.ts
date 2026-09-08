@@ -19,8 +19,8 @@ export function createBodyTools(db: RecipeDB): AgentTool<any>[] {
       parameters: LogBodyMetricSchema,
       execute: async (_id, params) => {
         const p = params as Static<typeof LogBodyMetricSchema>;
-        db.addBodyMetric(p.date ?? todayISO(), p.weight_kg, p.body_fat_pct ?? null, p.note ?? "");
-        return { content: [text(`已记录体重 ${p.weight_kg}kg`)], details: p };
+        const id = db.addBodyMetric(p.date ?? todayISO(), p.weight_kg, p.body_fat_pct ?? null, p.note ?? "");
+        return { content: [text(`已记录体重 ${p.weight_kg}kg`)], details: { ...p, id } };
       },
     },
     {

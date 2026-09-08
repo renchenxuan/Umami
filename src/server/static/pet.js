@@ -70,14 +70,13 @@
       this.dragData = null;
       this.bubbleTimer = null;
 
-      const rect = host.getBoundingClientRect();
-      this.w = rect.width || CW;
-      this.h = rect.height || CH;
+      this.w = 0;
+      this.h = 0;
+      this.refreshSize();
 
       host.classList.add("pet-sprite");
       host.style.backgroundImage = `url("${SPRITE_URL}")`;
       host.style.backgroundRepeat = "no-repeat";
-      host.style.backgroundSize = `${this.w * 8}px ${this.h * 9}px`;
       host.style.backgroundPosition = "0 0";
 
       if (this.opts.bubble) {
@@ -89,6 +88,16 @@
       if (this.opts.draggable) this.bindDrag();
       this.play(this.base);
       instances.push(this);
+    }
+
+    refreshSize() {
+      const rect = this.host.getBoundingClientRect();
+      const width = rect.width || CW;
+      const height = rect.height || Math.round(width * CH / CW);
+      if (width === this.w && height === this.h) return;
+      this.w = width;
+      this.h = height;
+      this.host.style.backgroundSize = `${this.w * 8}px ${this.h * 9}px`;
     }
 
     /** 切换状态。opts.once=true 时播完回到基础状态。 */
@@ -144,6 +153,7 @@
     }
 
     draw() {
+      this.refreshSize();
       const spec = ROWS[this.anim];
       const col = this.frame % spec.count;
       this.host.style.backgroundPosition = `${-col * this.w}px ${-spec.row * this.h}px`;
@@ -224,5 +234,6 @@
   window.UmamiPet = { create: (el, opts) => new Tuantuan(el, opts) };
   window.__umamiPet = {
     setState(name, opts) { for (const inst of instances) inst.setState(name, opts); },
+    refresh() { for (const inst of instances) inst.refreshSize(); },
   };
 })();

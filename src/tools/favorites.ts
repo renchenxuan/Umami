@@ -20,8 +20,8 @@ export function createFavoriteTools(db: RecipeDB): AgentTool<any>[] {
       parameters: SaveFavoriteSchema,
       execute: async (_id, params) => {
         const p = params as Static<typeof SaveFavoriteSchema>;
-        db.addFavorite(p.recipe_name, p.ingredients ?? [], p.steps ?? []);
-        return { content: [text(`已收藏：${p.recipe_name}`)], details: p };
+        const id = db.addFavorite(p.recipe_name, p.ingredients ?? [], p.steps ?? []);
+        return { content: [text(`已收藏：${p.recipe_name}`)], details: { ...p, id } };
       },
     },
     {

@@ -24,12 +24,13 @@ export function createIngredientTools(db: RecipeDB): AgentTool<any>[] {
       execute: async (_id, params) => {
         const p = params as Static<typeof SaveIngredientsSchema>;
         const saved: { name: string; quantity: string; category: string }[] = [];
+        const ids: number[] = [];
         for (const ing of p.ingredients) {
           const name = ing.name.trim();
           if (!name) continue;
           const quantity = ing.quantity ?? "若干";
           const category = ing.category ?? "其他";
-          db.addIngredient(name, quantity, category, "agent");
+          ids.push(db.addIngredient(name, quantity, category, "agent"));
           saved.push({ name, quantity, category });
         }
         return {
@@ -40,7 +41,7 @@ export function createIngredientTools(db: RecipeDB): AgentTool<any>[] {
                 : "没有可保存的食材",
             ),
           ],
-          details: saved,
+          details: { ids, items: saved },
         };
       },
     },

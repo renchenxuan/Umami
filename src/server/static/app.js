@@ -179,7 +179,9 @@ function applyAmbient(mode) {
 applyAmbient(localStorage.getItem(AMBIENT_KEY));
 // 将主题偏好同步到服务端，实现跨设备一致。
 function syncThemeToServer(theme) {
-  fetch("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uiTheme: theme }) }).catch(() => {});
+  apiRequest("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ uiTheme: theme }) }).catch((error) => {
+    showAppStatus("主题同步失败，请稍后重试" + (error.requestId ? `（请求 ${error.requestId}）` : ""));
+  });
 }
 
 async function apiRequest(url, options) {
@@ -187,12 +189,17 @@ async function apiRequest(url, options) {
   let payload;
   try { payload = await res.json(); } catch { payload = null; }
   if (!res.ok || !payload || payload.ok === false) {
-    const message = payload && payload.error && payload.error.message
-      ? payload.error.message
+    const apiError = payload && payload.error ? payload.error : null;
+    const message = apiError?.message || payload?.message
+      ? (apiError?.message || payload.message)
       : `请求失败（${res.status}）`;
-    throw new Error(message);
+    const error = new Error(message);
+    error.code = apiError?.code || `HTTP_${res.status}`;
+    error.fieldErrors = apiError?.fieldErrors || payload?.fieldErrors || {};
+    error.requestId = apiError?.requestId || payload?.requestId || "";
+    throw error;
   }
-  return payload.ok === true ? payload.data : payload;
+  return payload.ok === true && Object.prototype.hasOwnProperty.call(payload, "data") ? payload.data : payload;
 }
 
 let statusTimer = null;
@@ -205,7 +212,44 @@ function showAppStatus(message, ok = false) {
 }
 
 function renderListError(container, msg = "加载失败，请刷新重试") {
-  container.innerHTML = '<div class="list-empty">' + msg + "</div>";
+  if (!container) return;
+  container.innerHTML = "";
+  const empty = document.createElement("div");
+  empty.className = "list-empty list-error";
+  empty.textContent = msg;
+  container.appendChild(empty);
+}
+
+function clearFieldErrors(form) {
+  if (!form) return;
+  form.querySelectorAll(".field-error-message").forEach((node) => node.remove());
+  form.querySelectorAll(".has-error").forEach((field) => {
+    field.classList.remove("has-error");
+    field.removeAttribute("aria-invalid");
+    field.removeAttribute("aria-describedby");
+  });
+}
+
+function showFieldErrors(form, error, mapping = {}) {
+  if (!form) return;
+  clearFieldErrors(form);
+  const entries = Object.entries(error?.fieldErrors || {});
+  let firstField = null;
+  for (const [name, message] of entries) {
+    const fieldId = mapping[name] || name;
+    const field = document.getElementById(fieldId);
+    if (!field || !form.contains(field)) continue;
+    field.classList.add("has-error");
+    field.setAttribute("aria-invalid", "true");
+    const hint = document.createElement("small");
+    hint.className = "field-error-message";
+    hint.id = `${field.id}-error`;
+    hint.textContent = message;
+    field.setAttribute("aria-describedby", hint.id);
+    field.closest("label")?.appendChild(hint) || field.after(hint);
+    if (!firstField) firstField = field;
+  }
+  if (firstField) firstField.focus();
 }
 
 let activeModal = null;
@@ -1263,13 +1307,13 @@ function renderWelcomeState() {
 
 async function loadConversations() {
   try {
-    const res = await fetch("/api/v1/conversations");
-    const data = await res.json();
-    conversations = data.ok ? (data.data || []) : [];
-  } catch {
-    conversations = [];
+    conversations = await apiRequest("/api/v1/conversations");
+    renderConversationList();
+  } catch (error) {
+    renderConversationList();
+    showAppStatus("读取会话失败，请稍后重试" + (error.requestId ? `（请求 ${error.requestId}）` : ""));
+    return;
   }
-  renderConversationList();
 
   const savedId = localStorage.getItem("currentConversationId");
   const saved = savedId ? Number(savedId) : null;
@@ -1298,14 +1342,12 @@ if (skillsClose) skillsClose.addEventListener("click", () => closeModal(skillsMo
 
 async function loadSkills() {
   try {
-    const res = await fetch("/api/v1/skills");
-    const data = await res.json();
-    if (!data.ok || !data.data) return;
-    const { skills, enabled } = data.data;
+    const { skills, enabled } = await apiRequest("/api/v1/skills");
     currentEnabledSkills = enabled || [];
     renderSkillsList(skills);
-  } catch {
-    if (skillsStatus) skillsStatus.textContent = "加载技能列表失败";
+  } catch (error) {
+    if (skillsStatus) skillsStatus.textContent = "加载技能列表失败，请稍后重试";
+    showAppStatus("读取技能列表失败" + (error.requestId ? `（请求 ${error.requestId}）` : ""));
   }
 }
 
@@ -1524,7 +1566,7 @@ function createBoardFlow() {
 function makeDraggable(cardEl, key) {
   cardEl.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
-    if (e.target instanceof Element && e.target.closest(".board-card-del, .board-card-action")) return;
+    if (e.target instanceof Element && e.target.closest(".board-card-del, .board-card-action, .board-card-move-controls")) return;
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
@@ -1569,6 +1611,43 @@ function makeDraggable(cardEl, key) {
     cardEl.addEventListener("pointerup", onUp);
     cardEl.addEventListener("pointercancel", onUp);
   });
+}
+
+function moveBoardCard(cardEl, key, dx, dy) {
+  const host = boardInner || boardCanvas;
+  const maxX = Math.max(0, host.clientWidth - cardEl.offsetWidth);
+  const maxY = Math.max(0, host.clientHeight - cardEl.offsetHeight);
+  const x = Math.round(Math.max(0, Math.min(cardEl.offsetLeft + dx, maxX)));
+  const y = Math.round(Math.max(0, Math.min(cardEl.offsetTop + dy, maxY)));
+  cardEl.style.left = x + "px";
+  cardEl.style.top = y + "px";
+  saveBoardPosition(key, x, y);
+  layoutBoardInner();
+  showAppStatus("看板卡片位置已更新", true);
+}
+
+function addBoardKeyboardControls(cardEl, key) {
+  cardEl.tabIndex = 0;
+  cardEl.setAttribute("aria-label", "看板卡片，可拖拽或使用方向按钮整理");
+  const controls = document.createElement("div");
+  controls.className = "board-card-move-controls";
+  const moves = [
+    ["上移", 0, -24, "↑"],
+    ["下移", 0, 24, "↓"],
+    ["左移", -24, 0, "←"],
+    ["右移", 24, 0, "→"],
+  ];
+  for (const [label, dx, dy, symbol] of moves) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "board-card-move-btn";
+    button.setAttribute("aria-label", label);
+    button.textContent = symbol;
+    button.addEventListener("pointerdown", (event) => event.stopPropagation());
+    button.addEventListener("click", (event) => { event.stopPropagation(); moveBoardCard(cardEl, key, dx, dy); });
+    controls.appendChild(button);
+  }
+  cardEl.appendChild(controls);
 }
 
 function buildCard(type, item, key, pos) {
@@ -1631,6 +1710,7 @@ function buildCard(type, item, key, pos) {
     el.appendChild(act);
   }
 
+  addBoardKeyboardControls(el, key);
   makeDraggable(el, key);
   return el;
 }
@@ -1688,6 +1768,7 @@ function makeCardShell(key, extraClass, pos) {
   head.appendChild(badge);
   head.appendChild(del);
   el.appendChild(head);
+  addBoardKeyboardControls(el, key);
   makeDraggable(el, key);
   return { el, head, icon, badge };
 }
@@ -1701,9 +1782,7 @@ async function buildRecipeCard(pos) {
   titleEl.className = "board-card-title";
   shell.el.appendChild(titleEl);
   try {
-    const res = await fetch("/api/v1/recipe-history");
-    const data = await res.json();
-    const list = data.ok ? (data.data || []) : [];
+    const list = await apiRequest("/api/v1/recipe-history");
     if (!list.length) {
       titleEl.textContent = "暂无保存的菜谱";
       const hint = document.createElement("div");
@@ -1738,9 +1817,7 @@ async function buildFavoritesCard(pos) {
   titleEl.className = "board-card-title";
   shell.el.appendChild(titleEl);
   try {
-    const res = await fetch("/api/v1/favorites");
-    const data = await res.json();
-    const list = data.ok ? (data.data || []) : [];
+    const list = await apiRequest("/api/v1/favorites");
     titleEl.textContent = list.length ? `已收藏 ${list.length} 个菜谱` : "还没有收藏";
     const snippet = document.createElement("div");
     snippet.className = "board-card-snippet";
@@ -1767,12 +1844,8 @@ async function buildFridgeCard(pos) {
   titleEl.className = "board-card-title";
   shell.el.appendChild(titleEl);
   try {
-    const sres = await fetch("/api/v1/fridge-settings");
-    const sd = await sres.json();
-    const settings = sd.ok && sd.data ? sd.data : { freezerTemp: -18, fridgeTemp: 4 };
-    const ires = await fetch("/api/v1/ingredients");
-    const idata = await ires.json();
-    const items = idata.ok ? (idata.data || []) : [];
+    const settings = await apiRequest("/api/v1/fridge-settings");
+    const items = await apiRequest("/api/v1/ingredients");
     let near = 0, expired = 0;
     for (const it of items) {
       const zone = it.zone || "fridge";
@@ -1808,9 +1881,7 @@ async function buildDietCard(pos) {
   titleEl.className = "board-card-title";
   shell.el.appendChild(titleEl);
   try {
-    const res = await fetch("/api/v1/diet-logs");
-    const data = await res.json();
-    const list = data.ok ? (data.data || []) : [];
+    const list = await apiRequest("/api/v1/diet-logs");
     const today = todayISO();
     const todayItems = list.filter((d) => d.date === today);
     if (!todayItems.length) {
@@ -1884,13 +1955,15 @@ async function renderBoard() {
     order++;
   }
 
+  let failedTypes = 0;
   for (const type of CARD_TYPES) {
     let items = [];
     try {
-      const res = await fetch(type.endpoint);
-      const data = await res.json();
-      items = data.ok ? (data.data || []) : [];
-    } catch { /* 忽略 */ }
+      items = await apiRequest(type.endpoint);
+    } catch (error) {
+      failedTypes++;
+      showAppStatus(`读取${type.label}看板数据失败` + (error.requestId ? `（请求 ${error.requestId}）` : ""));
+    }
     items.forEach((item, index) => {
       const key = type.key + ":" + item.id;
       if (hidden.has(key)) return;
@@ -1903,18 +1976,26 @@ async function renderBoard() {
   layoutBoardInner();
   if (inner.children.length === 0) {
     const hint = document.createElement("div");
-    hint.className = "board-empty";
-    hint.textContent = "还没有卡片。点右上角「添加」，或去「对话」里记录，它们会出现在这里，然后拖拽整理。";
+    hint.className = failedTypes ? "board-empty list-error" : "board-empty";
+    hint.textContent = failedTypes ? "看板数据加载失败，请稍后重试。" : "还没有卡片。点右上角「添加」，或去「对话」里记录，它们会出现在这里，然后拖拽整理。";
     inner.appendChild(hint);
   }
 }
 
 listen(restoreBoardBtn, "click", () => {
-  saveHiddenBoardCards(new Set());
-  renderBoard();
+saveHiddenBoardCards(new Set());
+renderBoard();
 });
 
-function showView(view) {
+function scrollTodayToTop(behavior = "smooth") {
+  const target = document.getElementById("today-structured");
+  if (!target || target.classList.contains("hidden")) return;
+  target.scrollTo({ top: 0, behavior });
+}
+
+function showView(view, options = {}) {
+  const resetTodayScroll = options.resetTodayScroll !== false;
+  closeMobileActionMenus();
   const isChat = view === "chat";
   const setHidden = (element, hidden) => element?.classList.toggle("hidden", hidden);
   if (view === "board") {
@@ -1933,8 +2014,11 @@ function showView(view) {
   setHidden(dietView, view !== "diet");
   setHidden(tutorialsView, view !== "tutorials");
   setHidden(profileView, view !== "profile");
-  requestAnimationFrame(() => window.__umamiPet?.refresh?.());
-  document.querySelectorAll(".nav-btn").forEach((b) => {
+  requestAnimationFrame(() => {
+    window.__umamiPet?.refresh?.();
+    if (view === "board" && resetTodayScroll) scrollTodayToTop();
+  });
+  document.querySelectorAll(".nav-btn[data-view]").forEach((b) => {
     const active = b.dataset.view === view;
     b.classList.toggle("active", active);
     b.setAttribute("aria-selected", active ? "true" : "false");
@@ -1963,14 +2047,64 @@ function showView(view) {
 }
 
 const navButtons = [...document.querySelectorAll(".nav-btn")];
+const mobileRecordBtn = document.getElementById("tab-record");
+const mobileMoreBtn = document.getElementById("tab-more");
+const mobileRecordMenu = document.getElementById("mobile-record-menu");
+const mobileMoreMenu = document.getElementById("mobile-more-menu");
+
+function setMobileMenu(menu, button, open) {
+  if (!menu || !button) return;
+  menu.classList.toggle("hidden", !open);
+  button.setAttribute("aria-expanded", String(open));
+}
+
+function closeMobileActionMenus() {
+  setMobileMenu(mobileRecordMenu, mobileRecordBtn, false);
+  setMobileMenu(mobileMoreMenu, mobileMoreBtn, false);
+}
+
+function toggleMobileMenu(menu, button) {
+  const open = !!menu && menu.classList.contains("hidden");
+  closeMobileActionMenus();
+  setMobileMenu(menu, button, open);
+  if (open) menu.querySelector("button:not([disabled])")?.focus();
+}
+
+function runMobileMenuAction(button) {
+  const view = button.dataset.view;
+  const action = button.dataset.action;
+  const quickRecord = button.dataset.mobileQuickRecord;
+  if (quickRecord) focusRecord(quickRecord);
+  else if (view) showView(view);
+  else if (action === "settings") settingsBtn?.click();
+  else if (action === "skills") skillsBtn?.click();
+  else if (action === "schedules") document.getElementById("schedules-btn")?.click();
+  closeMobileActionMenus();
+}
+
+mobileRecordMenu?.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => runMobileMenuAction(button)));
+mobileMoreMenu?.querySelectorAll("button").forEach((button) => button.addEventListener("click", () => runMobileMenuAction(button)));
+document.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  if (!target.closest(".nav, .mobile-action-menu")) closeMobileActionMenus();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeMobileActionMenus();
+});
+
 navButtons.forEach((b, index) => {
-  b.addEventListener("click", () => showView(b.dataset.view));
+  b.addEventListener("click", () => {
+    if (b.dataset.quickRecord === "mobile") return toggleMobileMenu(mobileRecordMenu, mobileRecordBtn);
+    if (b.dataset.mobileMore) return toggleMobileMenu(mobileMoreMenu, mobileMoreBtn);
+    showView(b.dataset.view);
+  });
   b.addEventListener("keydown", (event) => {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
     const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? navButtons.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + navButtons.length) % navButtons.length;
     navButtons[nextIndex].focus();
-    showView(navButtons[nextIndex].dataset.view);
+    if (navButtons[nextIndex].dataset.view) showView(navButtons[nextIndex].dataset.view);
   });
 });
 
@@ -1985,9 +2119,7 @@ let selectedCategory = "";
 
 async function loadFoodCategories() {
   try {
-    const res = await fetch("/api/v1/food-categories");
-    const data = await res.json();
-    const cats = data.ok ? (data.data || []) : [];
+    const cats = await apiRequest("/api/v1/food-categories");
     foodCategories.innerHTML = "";
     const allBtn = document.createElement("button");
     allBtn.className = "food-cat" + (selectedCategory === "" ? " active" : "");
@@ -2011,7 +2143,10 @@ async function loadFoodCategories() {
       btn.addEventListener("click", () => { selectedCategory = c; loadFoodCategories(); searchFoods(); });
       foodCategories.appendChild(btn);
     }
-  } catch {}
+  } catch (error) {
+    renderListError(foodCategories, "食材分类加载失败，请稍后重试");
+    showAppStatus("读取食材分类失败" + (error.requestId ? `（请求 ${error.requestId}）` : ""));
+  }
 }
 
 async function searchFoods() {
@@ -2020,10 +2155,12 @@ async function searchFoods() {
     const q = foodSearch.value.trim();
     if (q) params.set("q", q);
     if (selectedCategory) params.set("category", selectedCategory);
-    const res = await fetch("/api/v1/foods?" + params.toString());
-    const data = await res.json();
-    renderFoodGrid(data.ok ? (data.data || []) : []);
-  } catch { foodGrid.innerHTML = '<div class="food-empty">加载失败，请刷新重试</div>'; }
+    const foods = await apiRequest("/api/v1/foods?" + params.toString());
+    renderFoodGrid(foods || []);
+  } catch (error) {
+    foodGrid.innerHTML = '<div class="food-empty">加载失败，请稍后重试</div>';
+    showAppStatus("读取食材大全失败" + (error.requestId ? `（请求 ${error.requestId}）` : ""));
+  }
 }
 
 let currentFoods = [];
@@ -2237,10 +2374,11 @@ function updateFridgeTempLabels() {
 
 async function loadFridgeSettingsUI() {
   try {
-    const res = await fetch("/api/v1/fridge-settings");
-    const data = await res.json();
-    if (data.ok && data.data) fridgeSettings = data.data;
-  } catch { /* 使用默认温度 */ }
+    const data = await apiRequest("/api/v1/fridge-settings");
+    if (data) fridgeSettings = data;
+  } catch (error) {
+    showAppStatus("读取冰箱温度失败，将暂时使用当前页面数据" + (error.requestId ? `（请求 ${error.requestId}）` : ""));
+  }
   const ft = document.getElementById("freezer-temp");
   const rt = document.getElementById("fridge-temp");
   if (ft) ft.value = fridgeSettings.freezerTemp;
@@ -2256,14 +2394,15 @@ function bindFridgeTempControls() {
     const fridgeTemp = Number(rt && rt.value);
     if (!Number.isFinite(freezerTemp) || !Number.isFinite(fridgeTemp)) return;
     try {
-      const res = await fetch("/api/v1/fridge-settings", {
+      const data = await apiRequest("/api/v1/fridge-settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ freezerTemp, fridgeTemp }),
       });
-      const data = await res.json();
-      if (data.ok && data.data) { fridgeSettings = data.data; updateFridgeTempLabels(); refreshFridgeItems(); }
-    } catch { /* 忽略保存失败 */ }
+      if (data) { fridgeSettings = data; updateFridgeTempLabels(); refreshFridgeItems(); showAppStatus("冰箱温度已保存", true); }
+    } catch (error) {
+      showAppStatus("冰箱温度保存失败，请稍后重试" + (error.requestId ? `（请求 ${error.requestId}）` : ""));
+    }
   }, 400);
   if (ft) ft.addEventListener("change", save);
   if (rt) rt.addEventListener("change", save);
@@ -2303,6 +2442,9 @@ function renderFridgeItem(it, container) {
   const item = document.createElement("div");
   item.className = "fridge-item" + (status === "expired" ? " is-expired" : "");
   item.title = "查看详情";
+  item.tabIndex = 0;
+  item.setAttribute("role", "button");
+  item.setAttribute("aria-label", `查看${it.name}详情`);
 
   const main = document.createElement("div");
   main.className = "fridge-item-main";
@@ -2323,6 +2465,12 @@ function renderFridgeItem(it, container) {
   item.appendChild(badge);
 
   item.addEventListener("click", () => openIngredientModal(it.id));
+  item.addEventListener("keydown", (event) => {
+    if (event.target instanceof Element && event.target.closest("button")) return;
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    openIngredientModal(it.id);
+  });
 
   const del = document.createElement("button");
   del.className = "fridge-item-del";
@@ -2404,6 +2552,9 @@ function renderZoneModal() {
     const row = document.createElement("div");
     row.className = "fridge-item";
     row.title = "查看详情";
+    row.tabIndex = 0;
+    row.setAttribute("role", "button");
+    row.setAttribute("aria-label", `查看${it.name}详情`);
     const main = document.createElement("div");
     main.className = "fridge-item-main";
     const name = document.createElement("span");
@@ -2427,6 +2578,13 @@ function renderZoneModal() {
     del.addEventListener("click", (e) => { e.stopPropagation(); removeFromFridge(it.id); });
     row.appendChild(del);
     row.addEventListener("click", () => { closeModal(zoneModal); openIngredientModal(it.id); });
+    row.addEventListener("keydown", (event) => {
+      if (event.target instanceof Element && event.target.closest("button")) return;
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      closeModal(zoneModal);
+      openIngredientModal(it.id);
+    });
     zoneModalItems.appendChild(row);
   }
 }
@@ -2694,10 +2852,11 @@ async function loadFitness() {
   renderWorkoutPresets();
   if (!wDate.value) wDate.value = todayISO();
   try {
-    const res = await fetch("/api/v1/workouts");
-    const data = await res.json();
-    renderWorkouts(data.ok ? (data.data || []) : []);
-  } catch { renderListError(workoutList); }
+    renderWorkouts(await apiRequest("/api/v1/workouts"));
+  } catch (error) {
+    renderListError(workoutList);
+    showAppStatus("读取训练记录失败" + (error.requestId ? `（请求 ${error.requestId}）` : ""));
+  }
 }
 
 function renderWorkouts(items) {
@@ -2731,6 +2890,8 @@ function renderWorkouts(items) {
 }
 
 async function addWorkout() {
+  const form = document.getElementById("workout-form");
+  clearFieldErrors(form);
   const activity_type = wType.value.trim();
   if (!activity_type) return;
   try {
@@ -2749,7 +2910,10 @@ async function addWorkout() {
     wDetail.value = "";
     await loadFitness();
     showAppStatus("训练记录已保存", true);
-  } catch (error) { showAppStatus("记录训练失败：" + error.message); }
+  } catch (error) {
+    showFieldErrors(form, error, { activity_type: "w-type", duration_min: "w-duration", date: "w-date" });
+    showAppStatus("记录训练失败：" + error.message);
+  }
 }
 
 async function removeWorkout(id) {
@@ -2770,20 +2934,31 @@ const dietList = document.getElementById("diet-list");
 
 async function loadDiet() {
   if (!dDate.value) dDate.value = todayISO();
-  try {
-    const [logsRes, summaryRes] = await Promise.all([fetch("/api/v1/diet-logs"), fetch("/api/v1/diet-summary")]);
-    const logsData = await logsRes.json();
-    let summary = null;
-    try { const s = await summaryRes.json(); if (s.ok) summary = s.data; } catch { /* 汇总失败不阻塞列表 */ }
-    renderDietSummary(summary);
-    renderDiet(logsData.ok ? (logsData.data || []) : []);
-  } catch { renderListError(dietList); }
+  const [logsResult, summaryResult] = await Promise.allSettled([
+    apiRequest("/api/v1/diet-logs"),
+    apiRequest("/api/v1/diet-summary"),
+  ]);
+  if (logsResult.status === "fulfilled") renderDiet(logsResult.value || []);
+  else {
+    renderListError(dietList);
+    showAppStatus("读取饮食记录失败" + (logsResult.reason?.requestId ? `（请求 ${logsResult.reason.requestId}）` : ""));
+  }
+  if (summaryResult.status === "fulfilled") renderDietSummary(summaryResult.value);
+  else {
+    renderDietSummary(null);
+    showAppStatus("饮食汇总暂时不可用" + (summaryResult.reason?.requestId ? `（请求 ${summaryResult.reason.requestId}）` : ""));
+  }
 }
 
 function renderDietSummary(summary) {
   const wrap = document.getElementById("diet-summary");
   if (!wrap) return;
-  if (!summary) { wrap.classList.add("hidden"); return; }
+  if (!summary) {
+    wrap.classList.add("hidden");
+    const summaryText = document.getElementById("diet-summary-text");
+    if (summaryText) summaryText.textContent = "饮食汇总暂时不可用，请稍后重试。";
+    return;
+  }
   wrap.classList.remove("hidden");
   const { today, week, target } = summary;
   const targetKcal = target ? target.kcal : 2000;
@@ -2845,6 +3020,12 @@ function renderDietSummary(summary) {
     col.append(bar, label);
     trend.appendChild(col);
   });
+  const summaryText = document.getElementById("diet-summary-text");
+  if (summaryText) {
+    const meals = mealOrder.map((m) => `${m}${today.meals[m] ? Math.round(today.meals[m].kcal) + " 千卡" : "未记录"}`).join("、");
+    const recent = week.length ? `最近 ${week.length} 天平均 ${Math.round(week.reduce((sum, day) => sum + day.kcal, 0) / week.length)} 千卡/天` : "暂无近 7 天趋势";
+    summaryText.textContent = `今日共 ${Math.round(today.total.kcal)} 千卡，目标 ${targetKcal} 千卡；${meals}。${recent}。`;
+  }
 }
 
 function renderDiet(items) {
@@ -2899,6 +3080,8 @@ function renderDiet(items) {
 }
 
 async function addDiet() {
+  const form = document.getElementById("diet-form");
+  clearFieldErrors(form);
   const foodsStr = dFoods.value.trim();
   if (!foodsStr) return;
   const foods = foodsStr.split(/[,，、]/).map((s) => s.trim()).filter(Boolean).map((name) => ({ name }));
@@ -2912,7 +3095,10 @@ async function addDiet() {
     dNote.value = "";
     await loadDiet();
     showAppStatus("饮食记录已保存", true);
-  } catch (error) { showAppStatus("记录饮食失败：" + error.message); }
+  } catch (error) {
+    showFieldErrors(form, error, { meal_type: "d-meal", foods: "d-foods", date: "d-date" });
+    showAppStatus("记录饮食失败：" + error.message);
+  }
 }
 
 async function removeDiet(id) {
@@ -2940,9 +3126,7 @@ const pBodyfat = document.getElementById("p-bodyfat");
 
 async function loadProfile() {
   try {
-    const res = await fetch("/api/v1/preferences");
-    const data = await res.json();
-    const p = data.ok ? data.data : data;
+    const p = await apiRequest("/api/v1/preferences");
     pHeight.value = p.height_cm != null ? p.height_cm : "";
     pAge.value = p.age != null ? p.age : "";
     pGender.value = p.gender || "";
@@ -2952,14 +3136,17 @@ async function loadProfile() {
     pAllergies.value = p.allergies || "";
     pPeople.value = p.people_count != null ? p.people_count : "";
     pDays.value = p.days != null ? p.days : "";
-  } catch { showAppStatus("读取个人资料失败，请稍后重试"); }
+  } catch (error) { showAppStatus("读取个人资料失败，请稍后重试" + (error.requestId ? `（请求 ${error.requestId}）` : "")); }
   try {
     const [metrics, diets] = await Promise.all([
       apiRequest("/api/v1/body-metrics"),
       apiRequest("/api/v1/diet-logs"),
     ]);
     renderProfileDaily(metrics || [], diets || []);
-  } catch { renderListError(document.getElementById("profile-daily")); }
+  } catch (error) {
+    renderListError(document.getElementById("profile-daily"));
+    showAppStatus("读取身体记录失败，请稍后重试" + (error.requestId ? `（请求 ${error.requestId}）` : ""));
+  }
 }
 
 // 体重趋势图：内联 SVG 折线（近 30 次记录），体脂以虚线叠加。
@@ -2974,6 +3161,8 @@ function renderWeightChart(metrics) {
   if (points.length < 2) {
     container.innerHTML = "";
     container.classList.add("hidden");
+    const summary = document.getElementById("weight-chart-summary");
+    if (summary) summary.textContent = points.length ? `当前体重 ${points[0].value}kg，还需要至少两次记录才能展示趋势。` : "暂无体重趋势，先记录两次体重吧。";
     return;
   }
   container.classList.remove("hidden");
@@ -3010,6 +3199,11 @@ function renderWeightChart(metrics) {
     (fatPoints.length >= 2
       ? '<div class="wc-legend"><span><i class="wc-dot solid"></i>体重 kg</span><span><i class="wc-dot dash"></i>体脂 %</span></div>'
       : "");
+  const summary = document.getElementById("weight-chart-summary");
+  if (summary) {
+    const change = points[points.length - 1].value - points[0].value;
+    summary.textContent = `近 ${points.length} 次记录：${points[0].value}kg → ${last.value}kg，${change > 0 ? "增加" : change < 0 ? "减少" : "基本不变"} ${Math.abs(change).toFixed(1)}kg。图表仅展示趋势，不代表医疗判断。`;
+  }
 }
 
 function renderProfileDaily(metrics, diets) {
@@ -3046,6 +3240,8 @@ function renderProfileDaily(metrics, diets) {
 
 listen(document.getElementById("weight-form"), "submit", async (e) => {
   e.preventDefault();
+  const form = e.currentTarget;
+  clearFieldErrors(form);
   const w = pWeight.value.trim();
   if (!w) return;
   const payload = { date: todayISO(), weight_kg: Number(w) };
@@ -3060,11 +3256,16 @@ listen(document.getElementById("weight-form"), "submit", async (e) => {
     if (pBodyfat) pBodyfat.value = "";
     showAppStatus("已记录体重" + (payload.body_fat_pct != null ? "与体脂" : ""), true);
     loadProfile();
-  } catch (err) { showAppStatus("记录失败：" + err.message); }
+  } catch (err) {
+    showFieldErrors(form, err, { weight_kg: "p-weight", body_fat_pct: "p-bodyfat" });
+    showAppStatus("记录失败：" + err.message);
+  }
 });
 
 listen(document.getElementById("profile-form"), "submit", async (e) => {
   e.preventDefault();
+  const form = e.currentTarget;
+  clearFieldErrors(form);
   const payload = {
     height_cm: pHeight.value ? Number(pHeight.value) : null,
     age: pAge.value ? Number(pAge.value) : null,
@@ -3081,6 +3282,11 @@ listen(document.getElementById("profile-form"), "submit", async (e) => {
     profileStatus.textContent = "已保存";
     profileStatus.className = "settings-status ok";
   } catch (err) {
+    showFieldErrors(form, err, {
+      height_cm: "p-height", age: "p-age", gender: "p-gender", activity_level: "p-activity",
+      taste_preference: "p-taste", cuisine_style: "p-cuisine", allergies: "p-allergies",
+      people_count: "p-people", days: "p-days",
+    });
     profileStatus.textContent = "保存失败：" + err.message;
     profileStatus.className = "settings-status err";
   }
@@ -3481,11 +3687,7 @@ let currentSettings = null;
 
 async function loadSettings() {
   try {
-    const res = await fetch("/api/settings");
-    const payload = await res.json();
-    if (!res.ok) throw new Error(payload?.error?.message || payload?.message || `请求失败（${res.status}）`);
-    if (payload?.ok === false) throw new Error(payload.error?.message || payload.message || "设置请求失败");
-    currentSettings = payload?.ok === true ? payload.data : payload;
+    currentSettings = await apiRequest("/api/settings");
     if (!currentSettings || typeof currentSettings !== "object") throw new Error("设置响应格式无效");
     if (providerSelect) providerSelect.value = currentSettings.modelName || providerSelect.value;
     if (currentSettings.custom) {
@@ -3574,10 +3776,11 @@ function handleTodayAction(kind) {
 }
 
 function renderTodayError(error) {
-  todayViewData = null;
+  const hasExistingData = Boolean(todayViewData);
   const reason = error?.message || "今日数据接口暂时不可用";
   const createErrorState = () => {
     const state = document.createElement("div");
+    state.id = "today-load-status";
     state.className = "today-load-error settings-status err";
     const title = document.createElement("strong");
     title.textContent = "今日数据暂时无法加载";
@@ -3592,14 +3795,15 @@ function renderTodayError(error) {
     return state;
   };
 
+  document.getElementById("today-load-status")?.remove();
   if (todayMetrics) {
-    todayMetrics.replaceChildren(createErrorState());
+    todayMetrics.appendChild(createErrorState());
   } else if (todayNextActions) {
     todayNextActions.replaceChildren(createErrorState());
   } else if (todayStructured) {
     todayStructured.appendChild(createErrorState());
   }
-  if (todayNextActions && todayMetrics) {
+  if (!hasExistingData && todayNextActions && todayMetrics) {
     const recovery = document.createElement("div");
     recovery.className = "today-recovery";
     const message = document.createElement("p");
@@ -3650,14 +3854,62 @@ listen(todayStructured || document, "click", (event) => {
 
 function renderToday(data) {
   todayViewData = data;
+  document.getElementById("today-load-status")?.remove();
   const date = document.getElementById("today-date"); if (date) date.textContent = data.date;
-  const metrics = todayMetrics;
-  if (metrics) metrics.innerHTML = [
-    ["tools-kitchen", "饮食热量", `${data.metrics.dietKcal} kcal`, data.metrics.calorieTarget ? `目标 ${data.metrics.calorieTarget}` : "尚未设定目标"],
-    ["barbell", "训练时长", `${data.metrics.workoutMinutes} 分钟`, "今天累计"],
-    ["heart", "习惯完成", `${data.metrics.habitCompleted} 项`, "今天已记录"],
-    ["scale", "最新体重", data.metrics.latestWeight == null ? "—" : `${data.metrics.latestWeight} kg`, "最近一次记录"],
-  ].map(([icon, label, value, note]) => `<div class="today-metric"><span class="today-metric-icon">${uiIcon(icon)}</span><span class="today-metric-label">${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(note)}</small></div>`).join("");
+  const metrics = data.metrics || {};
+  const activity = Array.isArray(data.recentActivity) ? data.recentActivity : [];
+  const coverage = {
+    diet: metrics.dietKcal > 0 || activity.some((item) => item.type === "diet"),
+    fitness: metrics.workoutMinutes > 0 || activity.some((item) => item.type === "workout"),
+    habit: metrics.habitCompleted > 0 || activity.some((item) => item.type === "habit"),
+    weight: metrics.latestWeight != null || activity.some((item) => item.type === "weight"),
+  };
+  const coverageKeys = Object.keys(coverage);
+  const coveredCount = coverageKeys.filter((key) => coverage[key]).length;
+  const coverageValue = document.getElementById("today-coverage-value");
+  const coverageLabel = document.getElementById("today-coverage-label");
+  const coverageSummary = document.getElementById("today-coverage-summary");
+  const ringDescription = document.getElementById("today-ring-desc");
+  if (coverageValue) coverageValue.textContent = `${coveredCount}/4`;
+  if (coverageLabel) coverageLabel.textContent = coveredCount === 4 ? "全部有记录" : "已记录";
+  const summaryText = coveredCount === 0
+    ? "今天还没有记录，从一件最容易的小事开始。"
+    : coveredCount === 4
+      ? "饮食、训练、习惯和体重，今天都有了温柔的留痕。"
+      : `今天已有 ${coveredCount}/4 类记录，继续照顾下一件小事就好。`;
+  if (coverageSummary) coverageSummary.textContent = summaryText;
+  if (ringDescription) ringDescription.textContent = `今日四类健康记录中已有 ${coveredCount} 类记录：${coverageKeys.filter((key) => coverage[key]).map((key) => ({ diet: "饮食", fitness: "训练", habit: "习惯", weight: "体重" })[key]).join("、") || "暂无"}。`;
+  coverageKeys.forEach((key, index) => {
+    document.querySelectorAll(`[data-coverage-key="${key}"]`).forEach((element) => {
+      element.classList.toggle("is-active", coverage[key]);
+      if (element.matches("circle")) {
+        element.setAttribute("transform", `rotate(${index * 90 - 90} 90 90)`);
+      } else {
+        const state = element.querySelector("b");
+        if (state) state.textContent = coverage[key] ? "已记录" : "未记录";
+      }
+    });
+  });
+  const statValues = {
+    diet: `${metrics.dietKcal ?? 0} kcal`,
+    fitness: `${metrics.workoutMinutes ?? 0} 分钟`,
+    habit: `${metrics.habitCompleted ?? 0} 项`,
+    weight: metrics.latestWeight == null ? "—" : `${metrics.latestWeight} kg`,
+  };
+  const statNotes = {
+    diet: metrics.calorieTarget ? `目标 ${metrics.calorieTarget} kcal` : "尚未设定目标",
+    fitness: "今天累计",
+    habit: "今天已记录",
+    weight: "最近一次记录",
+  };
+  coverageKeys.forEach((key) => {
+    const value = document.getElementById(`today-${key}-value`);
+    const note = document.getElementById(`today-${key}-note`);
+    const stat = document.querySelector(`.today-stat[data-stat="${key}"]`);
+    if (value) value.textContent = statValues[key];
+    if (note) note.textContent = statNotes[key];
+    stat?.classList.toggle("is-active", coverage[key]);
+  });
   const next = todayNextActions;
   if (next) {
     const actions = [];
@@ -3668,8 +3920,8 @@ function renderToday(data) {
     const actionNotes = { fridge: "保鲜提醒", diet: "饮食记录", fitness: "运动记录", analysis: "趋势查看" };
     next.innerHTML = actions.map(([label, action, kind], index) => `<button type="button" class="today-action${index === 0 ? " is-primary" : ""}" data-today-action="${kind}"><span class="today-action-state" aria-hidden="true"></span><span class="today-action-copy"><strong>${escapeHtml(label)}</strong><small>今天 · ${escapeHtml(actionNotes[kind] || "今日安排")}</small></span><b>${escapeHtml(action)} <span aria-hidden="true">→</span></b></button>`).join("");
   }
-  const activity = todayActivity;
-  if (activity) activity.innerHTML = data.recentActivity?.length ? data.recentActivity.map((item) => `<div class="today-activity"><span class="today-activity-dot"></span><div><strong>${escapeHtml(item.label || "完成一项记录")}</strong><small>${escapeHtml(relativeTime(item.occurredAt) || item.occurredAt || "今天")}</small></div></div>`).join("") : '<p class="today-empty">还没有记录，从上面的快速记录开始。</p>';
+  const activityList = todayActivity;
+  if (activityList) activityList.innerHTML = activity.length ? activity.map((item) => `<div class="today-activity"><span class="today-activity-dot" data-activity-type="${escapeHtml(item.type || "record")}"></span><div><strong>${escapeHtml(item.label || "完成一项记录")}</strong><small>${escapeHtml(relativeTime(item.occurredAt) || item.occurredAt || "今天")}</small></div></div>`).join("") : '<p class="today-empty">还没有记录，从上面的快速记录开始。</p>';
 }
 async function loadToday() {
   const retry = document.getElementById("today-reload-btn");
@@ -3713,6 +3965,7 @@ function closeOrganizeBoard() {
   boardToolbar?.classList.add("hidden");
   todayStructured?.classList.remove("hidden");
   document.getElementById("organize-board-btn")?.classList.remove("hidden");
+  requestAnimationFrame(() => scrollTodayToTop());
 }
 
 function scrollToTodayQuickRecord() {
@@ -3720,7 +3973,7 @@ function scrollToTodayQuickRecord() {
 }
 
 function openTodayQuickRecord() {
-  showView("board");
+  showView("board", { resetTodayScroll: false });
   // 今日页切换和看板重绘都可能在当前帧继续进行，下一帧滚动可避免落到旧视图位置。
   requestAnimationFrame(() => scrollToTodayQuickRecord());
 }
@@ -3966,8 +4219,8 @@ listen(document.getElementById("settings-help-btn"), "click", () => {
   closeModal(settingsModal);
   openOnboardingDrawer();
 });
-// 默认落在“问团团”，今日总览仍可从主导航进入。
-showView("chat");
+// 默认从“今日”开始，让用户先看到本地记录与下一步行动。
+showView("board");
 if (!onboardingWasSeen()) openOnboardingDrawer();
 
 function renderAiConsent() {
@@ -3986,17 +4239,38 @@ function renderAiConsent() {
     const dismissed = sessionStorage.getItem("aiConsentBannerDismissed") === "1";
     banner.classList.toggle("hidden", granted || dismissed);
   }
-  if (tutorialConsent) tutorialConsent.textContent = granted ? "已授权 AI 数据使用 · 本次会发送菜名、冰箱食材与口味偏好给当前模型提供商" : "开小灶需要先完成一次 AI 数据授权；本地手写教程不受影响。";
   const policies = currentSettings?.aiDataPolicies || [];
   const policy = (feature) => policies.find((item) => item.feature === feature);
+  const policyDescription = (item) => {
+    if (!item) return "本次功能所需的数据";
+    const categories = (item.categories || []).join("、") || "本次功能所需的数据";
+    return `${categories}${item.scopeNotice ? `。${item.scopeNotice}` : ""}`;
+  };
   const recommendation = policy("recommendation");
   const analysis = policy("analysis");
   const fridge = policy("fridge");
+  const tutorial = policy("tutorial");
   const provider = `${currentSettings?.modelName || "当前模型"} / ${currentSettings?.model || "默认模型"}`;
-  const categories = (item) => (item?.categories || []).map((value) => escapeHtml(value)).join("、") || "本次功能所需的数据";
-  const recommendationText = document.getElementById("recommend-policy-text"); if (recommendationText) recommendationText.innerHTML = `生成推荐时，会把${categories(recommendation)}发送给当前模型提供商（<span id="recommend-provider">${escapeHtml(provider)}</span>）。${escapeHtml(recommendation?.estimateNotice || "")}`;
-  const analysisText = document.getElementById("analysis-policy-text"); if (analysisText) analysisText.innerHTML = `生成分析时，会把${categories(analysis)}发送给当前模型提供商（<span id="analysis-provider">${escapeHtml(provider)}</span>）。${escapeHtml(analysis?.estimateNotice || "")}`;
-  const fridgeText = document.getElementById("fridge-ai-policy"); if (fridgeText) fridgeText.textContent = `「AI 保鲜建议」会把${(fridge?.categories || ["冰箱数据"]).join("、")}发送给当前模型提供商。${fridge?.estimateNotice || ""}`;
+  const recommendationText = document.getElementById("recommend-policy-text"); if (recommendationText) recommendationText.textContent = `生成推荐时，会把${policyDescription(recommendation)}发送给当前模型提供商（${provider}）。${recommendation?.estimateNotice || ""}`;
+  const analysisText = document.getElementById("analysis-policy-text"); if (analysisText) analysisText.textContent = `生成分析时，会把${policyDescription(analysis)}发送给当前模型提供商（${provider}）。${analysis?.estimateNotice || ""}`;
+  const fridgeText = document.getElementById("fridge-ai-policy"); if (fridgeText) fridgeText.textContent = `「AI 保鲜建议」会把${policyDescription(fridge)}发送给当前模型提供商。${fridge?.estimateNotice || ""}`;
+  if (tutorialConsent) tutorialConsent.textContent = granted ? `已授权 AI 数据使用 · 本次会发送${policyDescription(tutorial)}给当前模型提供商` : "开小灶需要先完成一次 AI 数据授权；本地手写教程不受影响。";
+
+  const policyList = document.getElementById("ai-policy-list");
+  if (policyList) {
+    const labels = { chat: "聊天", image: "识图", recommendation: "健康推荐", analysis: "健康分析", tutorial: "开小灶", fridge: "AI 保鲜", scheduled: "定时任务" };
+    policyList.innerHTML = "";
+    for (const item of policies) {
+      const row = document.createElement("div");
+      row.className = "ai-policy-row";
+      const title = document.createElement("strong");
+      title.textContent = labels[item.feature] || item.feature;
+      const detail = document.createElement("span");
+      detail.textContent = `${policyDescription(item)} · 提供商：${provider}${item.estimateNotice ? ` · ${item.estimateNotice}` : ""}`;
+      row.append(title, detail);
+      policyList.appendChild(row);
+    }
+  }
 }
 
 async function openAiConsentSettings() {
@@ -4165,20 +4439,17 @@ listen(saveBtn, "click", async () => {
     } else {
       body.modelId = modelSelect.value;
     }
-    const res = await fetch("/api/settings", {
+    const data = await apiRequest("/api/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const data = await res.json();
-    showStatus(data.ok ? "已保存并切换" : data.message, data.ok);
-    if (data.ok) {
-      currentSettings = data;
-      apiKeyInput.value = "";
-      renderKeyHint();
-      updateModelAvailability();
-      closeModal(settingsModal);
-    }
+    showStatus("已保存并切换", true);
+    currentSettings = data;
+    apiKeyInput.value = "";
+    renderKeyHint();
+    updateModelAvailability();
+    closeModal(settingsModal);
   } catch (e) {
     showStatus("保存失败：" + e.message, false);
   }
@@ -4230,12 +4501,7 @@ document.addEventListener("error", (e) => {
 
 // 首屏启动：拉取模型/主题配置，应用主题并刷新功能可用性。
 (function bootstrapSettings() {
-  fetch("/api/settings").then(async (r) => {
-    const payload = await r.json();
-    if (!r.ok) throw new Error(payload?.error?.message || payload?.message || `请求失败（${r.status}）`);
-    if (payload?.ok === false) throw new Error(payload.error?.message || payload.message || "设置请求失败");
-    return payload?.ok === true ? payload.data : payload;
-  }).then((s) => {
+  apiRequest("/api/settings").then((s) => {
     currentSettings = s;
     if (s.uiTheme) applyTheme(s.uiTheme);
     renderAiConsent();
@@ -4298,9 +4564,7 @@ async function loadFavoritesOrHistory() {
   fhDetail.innerHTML = '<div class="fh-empty">从左侧选择一条查看详情</div>';
   try {
     const url = fhCurrentTab === "favorites" ? "/api/v1/favorites" : "/api/v1/recipe-history";
-    const res = await fetch(url);
-    const data = await res.json();
-    const list = data.ok ? (data.data || []) : [];
+    const list = await apiRequest(url);
     if (!list.length) { fhList.innerHTML = '<div class="fh-empty">暂无内容</div>'; return; }
     fhList.innerHTML = "";
     list.forEach((item) => {
@@ -4319,8 +4583,9 @@ async function loadFavoritesOrHistory() {
     });
     const first = fhList.querySelector(".fh-item");
     if (first) first.click();
-  } catch {
-    fhList.innerHTML = '<div class="fh-empty">加载失败</div>';
+  } catch (error) {
+    fhList.innerHTML = '<div class="fh-empty">加载失败，请稍后重试</div>';
+    showAppStatus("读取收藏/历史失败" + (error.requestId ? `（请求 ${error.requestId}）` : ""));
   }
 }
 
@@ -4365,13 +4630,14 @@ function openGoalsModal() { openModal(goalsModal); loadGoals(); }
 async function loadGoals() {
   goalsList.innerHTML = '<div class="skeleton-row"></div><div class="skeleton-row"></div>';
   try {
-    const res = await fetch("/api/v1/goals");
-    const data = await res.json();
-    const list = data.ok ? (data.data || []) : [];
+    const list = await apiRequest("/api/v1/goals");
     if (!list.length) { goalsList.innerHTML = '<div class="fh-empty">还没有目标，告诉 AI「帮我设定一个目标」即可。</div>'; return; }
     goalsList.innerHTML = "";
     list.forEach((g) => goalsList.appendChild(goalRow(g)));
-  } catch { goalsList.innerHTML = '<div class="fh-empty">加载失败</div>'; }
+  } catch (error) {
+    goalsList.innerHTML = '<div class="fh-empty">加载失败，请稍后重试</div>';
+    showAppStatus("读取目标失败" + (error.requestId ? `（请求 ${error.requestId}）` : ""));
+  }
 }
 
 function goalRow(g) {
@@ -4429,9 +4695,7 @@ function openHabitsModal() { openModal(habitsModal); loadHabits(); }
 async function loadHabits() {
   habitsList.innerHTML = '<div class="skeleton-row"></div><div class="skeleton-row"></div>';
   try {
-    const res = await fetch("/api/v1/habits");
-    const data = await res.json();
-    const list = data.ok ? (data.data || []) : [];
+    const list = await apiRequest("/api/v1/habits");
     if (!list.length) { habitsList.innerHTML = '<div class="fh-empty">还没有习惯记录。</div>'; return; }
     habitsList.innerHTML = "";
     list.forEach((h) => {
@@ -4455,7 +4719,10 @@ async function loadHabits() {
       row.appendChild(ctrl);
       habitsList.appendChild(row);
     });
-  } catch { habitsList.innerHTML = '<div class="fh-empty">加载失败</div>'; }
+  } catch (error) {
+    habitsList.innerHTML = '<div class="fh-empty">加载失败，请稍后重试</div>';
+    showAppStatus("读取习惯失败" + (error.requestId ? `（请求 ${error.requestId}）` : ""));
+  }
 }
 
 const habitsClose = document.getElementById("habits-close");
@@ -4951,6 +5218,7 @@ if (tutorialEditorForm) tutorialEditorForm.addEventListener("submit", async (e) 
 
 if (tutorialForm) tutorialForm.addEventListener("submit", async (e) => {
   e.preventDefault();
+  clearFieldErrors(tutorialForm);
   const dish = (tutorialDish.value || "").trim();
   if (!dish) { tutorialDish.focus(); setTutorialsStatus("请先填写想学的菜名"); return; }
   const servings = Number(tutorialServings.value);
@@ -4974,6 +5242,7 @@ if (tutorialForm) tutorialForm.addEventListener("submit", async (e) => {
     loadTutorials();
     spawnSuccessRipple();
   } catch (err) {
+    showFieldErrors(tutorialForm, err, { dish: "t-dish", servings: "t-servings" });
     setTutorialsStatus("生成失败：" + err.message);
   } finally {
     tutorialGenerate.disabled = !currentSettings?.aiConsent?.granted;
@@ -5053,19 +5322,16 @@ document.querySelectorAll(".service-card[data-service]").forEach((card) => {
     saveBtn.disabled = true;
     setStatus("保存中…", true);
     try {
-      const res = await fetch("/api/v1/settings/external-services", {
+      const data = await apiRequest("/api/v1/settings/external-services", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ service: serviceId, apiKey: key }),
       });
-      const data = await res.json();
-      if (data.ok) {
+      if (data) {
         setStatus("已保存并连接", true);
         keyInput.value = "";
         await loadSettings();
         refreshMapsBanner();
-      } else {
-        setStatus(data.error ? data.error.message : "保存失败");
       }
     } catch (e) {
       setStatus("保存失败：" + e.message);
@@ -5136,6 +5402,16 @@ function initScheduleEvents() {
   if (typeof EventSource === "undefined") return;
   try {
     const source = new EventSource("/api/v1/events");
+    let eventStreamUnavailable = false;
+    source.addEventListener("open", () => {
+      if (eventStreamUnavailable) showAppStatus("自动化提醒连接已恢复", true);
+      eventStreamUnavailable = false;
+    });
+    source.addEventListener("error", () => {
+      if (eventStreamUnavailable) return;
+      eventStreamUnavailable = true;
+      showAppStatus("自动化提醒连接中断，页面会自动重连");
+    });
     source.addEventListener("schedule_fired", (e) => {
       let payload = null;
       try { payload = JSON.parse(e.data); } catch { return; }
@@ -5179,11 +5455,7 @@ if (exportBtn) exportBtn.addEventListener("click", async () => {
   const original = exportBtn.textContent;
   try {
     exportBtn.disabled = true; exportBtn.textContent = "导出中…";
-    const res = await fetch("/api/v1/export");
-    if (!res.ok) throw new Error("导出失败");
-    const envelope = await res.json();
-    if (!envelope.ok) throw new Error(envelope.error?.message || "导出失败");
-    const bundle = envelope.data;
+    const bundle = await apiRequest("/api/v1/export");
     bundle.clientState = { boardPositions: loadBoardPositions(), hiddenCards: Object.fromEntries([...loadHiddenBoardCards()].map((key) => [key, true])), theme: document.documentElement.dataset.theme || "dark" };
     const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);

@@ -38,6 +38,16 @@ Quick Record reuses the existing meal, workout, weight, and habit forms instead 
 
 Tuntun is Umami’s little rice-ball kitchen companion. It waits with you, naps, celebrates successful actions, and helps turn vague intentions into something doable. On first launch, Tuntun presents a local three-step guide. Its example conversation is static: it never sends a message or calls a model by itself.
 
+## v4.1 — A clearer Today dashboard and trustworthy data flows
+
+Building on v4.0’s local-first model and explicit AI consent boundary, v4.1 makes the Today entry point calmer, clearer, and more resilient:
+
+- 🌀 **Today dashboard**: a four-part record-coverage ring, open data rows, and timelines replace the repetitive metric-card grid; clicking the active Today tab smoothly returns to the top.
+- 🧭 **Mobile task entry**: the primary navigation is now Today, Record, Fridge, and Ask Tuntun; Diet, Little Kitchen, Training, Health Profile, Automations, Skills, and Settings live under More.
+- 📡 **Trustworthy reads and failure feedback**: core reads share one request wrapper that preserves error codes, field errors, and request IDs; refresh failures keep existing data visible and expose a retry path.
+- 🧾 **Accurate AI data disclosures**: recommendations, fridge advice, chat, and scheduled tasks describe the fields they actually send; chat and scheduled runs follow a minimum-necessary-read policy.
+- ♿ **More complete interaction paths**: field-level error focus, keyboard actions, chart text summaries, touch targets, and mobile safe-area spacing are covered consistently.
+
 ## v4.0 — A trustworthy contract for a better today
 
 v4.0 is about making every record, AI request, and home-screen visit understandable and controllable:
@@ -175,7 +185,7 @@ Automation: Remind me to log dinner every day at 6 PM.
 
 ## Status
 
-Umami is currently **v4.0.0** and still evolving. Ideas, bug reports, and pull requests are welcome in the [issue tracker](https://github.com/renchenxuan/Umami/issues).
+Umami is currently **v4.1.0** and still evolving. Ideas, bug reports, and pull requests are welcome in the [issue tracker](https://github.com/renchenxuan/Umami/issues).
 
 ## License
 

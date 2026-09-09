@@ -123,10 +123,14 @@
               </div>
             </div>
           </div>
-          <div class="nav" role="tablist">
+          <div class="nav" aria-label="移动主导航">
             <button id="tab-board" class="nav-btn" type="button" data-view="board" role="tab" aria-selected="false" aria-controls="board" tabindex="-1">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
-              <span>今日总览</span>
+              <span>今日</span>
+            </button>
+            <button id="tab-record" class="nav-btn" type="button" data-quick-record="mobile" aria-haspopup="menu" aria-expanded="false" aria-controls="mobile-record-menu">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              <span>记录</span>
             </button>
             <button id="tab-fridge" class="nav-btn" type="button" data-view="fridge" role="tab" aria-selected="false" aria-controls="fridge" tabindex="-1">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v18M4 12h16M6.3 6.3l11.4 11.4M17.7 6.3L6.3 17.7"/></svg>
@@ -136,23 +140,27 @@
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               <span>问团团</span>
             </button>
-            <span class="nav-divider" role="separator" aria-hidden="true"></span>
-            <button id="tab-diet" class="nav-btn" type="button" data-view="diet" role="tab" aria-selected="false" aria-controls="diet" tabindex="-1">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3v7"/></svg>
-              <span>饮食</span>
+            <button id="tab-more" class="nav-btn mobile-more-btn" type="button" data-mobile-more="1" aria-haspopup="menu" aria-expanded="false" aria-controls="mobile-more-menu">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+              <span>更多</span>
             </button>
-            <button id="tab-tutorials" class="nav-btn" type="button" data-view="tutorials" role="tab" aria-selected="false" aria-controls="tutorials" tabindex="-1" aria-label="开小灶（手把手教做菜）">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18h12v3H6z"/><path d="M6 18a7 7 0 1 1 12-5.3A4.5 4.5 0 0 0 17 4a4.5 4.5 0 0 0-4.5 4A4.5 4.5 0 0 0 8 4a4.5 4.5 0 0 0-1 8.7A7 7 0 0 1 6 18Z"/></svg>
-              <span>开小灶</span>
-            </button>
-            <button id="tab-fitness" class="nav-btn" type="button" data-view="fitness" role="tab" aria-selected="false" aria-controls="fitness" tabindex="-1">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 9h11v6h-11z"/></svg>
-              <span>训练</span>
-            </button>
-            <button id="tab-profile" class="nav-btn" type="button" data-view="profile" role="tab" aria-selected="false" aria-controls="profile" tabindex="-1">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              <span>健康档案</span>
-            </button>
+          </div>
+          <div id="mobile-record-menu" class="mobile-action-menu hidden" role="menu" aria-label="快速记录">
+            <div class="mobile-action-menu-head"><strong>快速记录</strong><span>选一件现在要完成的小事</span></div>
+            <button type="button" data-mobile-quick-record="diet" role="menuitem"><svg class="ui-icon" aria-hidden="true"><use href="#i-tools-kitchen" /></svg><span>饮食</span><small>记下一餐</small></button>
+            <button type="button" data-mobile-quick-record="fitness" role="menuitem"><svg class="ui-icon" aria-hidden="true"><use href="#i-barbell" /></svg><span>训练</span><small>记一次运动</small></button>
+            <button type="button" data-mobile-quick-record="weight" role="menuitem"><svg class="ui-icon" aria-hidden="true"><use href="#i-scale" /></svg><span>体重</span><small>更新身体数据</small></button>
+            <button type="button" data-mobile-quick-record="habit" role="menuitem"><svg class="ui-icon" aria-hidden="true"><use href="#i-heart" /></svg><span>习惯</span><small>完成一次打卡</small></button>
+          </div>
+          <div id="mobile-more-menu" class="mobile-action-menu mobile-more-menu hidden" role="menu" aria-label="更多功能">
+            <div class="mobile-action-menu-head"><strong>更多功能</strong><span>把生活整理得更顺手</span></div>
+            <button id="tab-diet" type="button" data-view="diet" role="menuitem"><svg class="ui-icon" aria-hidden="true"><use href="#i-tools-kitchen" /></svg><span>饮食</span><small>餐食与热量</small></button>
+            <button id="tab-tutorials" type="button" data-view="tutorials" role="menuitem"><svg class="ui-icon" aria-hidden="true"><use href="#i-chef-hat" /></svg><span>开小灶</span><small>手把手做菜</small></button>
+            <button id="tab-fitness" type="button" data-view="fitness" role="menuitem"><svg class="ui-icon" aria-hidden="true"><use href="#i-barbell" /></svg><span>训练</span><small>运动记录</small></button>
+            <button id="tab-profile" type="button" data-view="profile" role="menuitem"><svg class="ui-icon" aria-hidden="true"><use href="#i-scale" /></svg><span>健康档案</span><small>身体与目标</small></button>
+            <button type="button" data-action="schedules" role="menuitem"><svg class="ui-icon" aria-hidden="true"><use href="#i-alarm" /></svg><span>自动化</span><small>提醒与计划</small></button>
+            <button type="button" data-action="skills" role="menuitem"><svg class="ui-icon" aria-hidden="true"><use href="#i-bulb" /></svg><span>技能中心</span><small>AI 回答能力</small></button>
+            <button type="button" data-action="settings" role="menuitem"><svg class="ui-icon" aria-hidden="true"><use href="#i-key" /></svg><span>设置中心</span><small>模型与授权</small></button>
           </div>
         </nav>
         <button id="settings-btn" class="settings-btn" type="button" title="设置中心" aria-label="打开设置中心">
@@ -180,7 +188,7 @@
         <button id="guidance-close" class="guidance-close" type="button" aria-label="关闭提示" title="关闭提示">✕</button>
       </div>
       <div id="ai-consent-banner" class="guidance-banner ai-consent-banner hidden" role="status">
-        <span class="guidance-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-key" /></svg></span><div class="guidance-text"><strong>AI 数据授权由你掌控</strong><span>授权后，聊天、识图、推荐、分析和保鲜建议才会把你主动提供的内容发送给当前模型提供商；本地记录始终可用。</span></div><button id="ai-consent-open-btn" class="guidance-btn" type="button">查看并授权</button><button id="ai-consent-close" class="guidance-close" type="button" aria-label="关闭 AI 授权提示" title="关闭提示">✕</button>
+        <span class="guidance-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-key" /></svg></span><div class="guidance-text"><strong>AI 数据授权由你掌控</strong><span>授权后，AI 才会把本次功能所需的内容发送给当前模型提供商；聊天只按当前问题按需读取相关本地记录，本地记录始终可用。</span></div><button id="ai-consent-open-btn" class="guidance-btn" type="button">查看并授权</button><button id="ai-consent-close" class="guidance-close" type="button" aria-label="关闭 AI 授权提示" title="关闭提示">✕</button>
       </div>
       <main id="messages" class="messages" aria-label="对话消息"></main>
 
@@ -189,7 +197,8 @@
           <div class="fridge-panel">
             <div class="fridge-panel-head">
               <h3>食材大全</h3>
-              <input id="food-search" class="food-search" type="text" placeholder="搜索食材，如「番茄」「牛肉」…" />
+              <label class="field-label-inline" for="food-search">搜索食材</label>
+              <input id="food-search" class="food-search" type="search" placeholder="如「番茄」「牛肉」…" />
               <div id="food-categories" class="food-categories"></div>
             </div>
             <div id="food-grid" class="food-grid"></div>
@@ -224,17 +233,17 @@
 
             <div class="fridge-body">
               <div class="fridge-zone" data-zone="freezer">
-                <div class="fridge-zone-head" data-zone="freezer">
+                <button type="button" class="fridge-zone-head" data-zone="freezer" aria-label="管理冷冻层">
                   <span class="fridge-zone-name">冷冻层</span>
                   <span class="fridge-zone-temp" id="freezer-temp-label"></span>
-                </div>
+                </button>
                 <div class="fridge-zone-items" id="fridge-freezer-items"></div>
               </div>
               <div class="fridge-zone" data-zone="fridge">
-                <div class="fridge-zone-head" data-zone="fridge">
+                <button type="button" class="fridge-zone-head" data-zone="fridge" aria-label="管理冷藏层">
                   <span class="fridge-zone-name">冷藏层</span>
                   <span class="fridge-zone-temp" id="fridge-temp-label"></span>
-                </div>
+                </button>
                 <div class="fridge-zone-items" id="fridge-items"></div>
               </div>
             </div>
@@ -261,10 +270,10 @@
           </div>
           <div id="workout-presets" class="workout-presets" role="group" aria-label="常用健身类型"></div>
           <form class="form-row" id="workout-form">
-            <input id="w-type" class="field" placeholder="类型，如 慢跑（也可点上方图标快速选择）" />
-            <input id="w-duration" class="field" type="number" placeholder="时长（分钟）" />
-            <input id="w-detail" class="field" placeholder="详情（可选）" />
-            <input id="w-date" class="field" type="date" />
+            <label class="compact-field"><span>类型</span><input id="w-type" class="field" placeholder="如慢跑" /></label>
+            <label class="compact-field"><span>时长（分钟）</span><input id="w-duration" class="field" type="number" min="1" max="1440" inputmode="numeric" placeholder="如30" /></label>
+            <label class="compact-field"><span>详情（可选）</span><input id="w-detail" class="field" placeholder="如轻松慢跑" /></label>
+            <label class="compact-field"><span>日期</span><input id="w-date" class="field" type="date" /></label>
             <button id="w-add" class="primary-btn" type="submit">记录</button>
           </form>
           <div id="workout-summary" class="summary"></div>
@@ -277,12 +286,12 @@
           <h2>饮食</h2>
           <p class="page-desc">记录每天吃了什么；到「今日总览」发起健康分析，AI 会结合近期的饮食、运动与身体数据给出结果。热量为系统按内置营养库的估算值，不是测量结果。</p>
           <form class="form-row" id="diet-form">
-            <select id="d-meal" class="field">
+            <label class="compact-field"><span>餐次</span><select id="d-meal" class="field">
               <option>早餐</option><option>午餐</option><option>晚餐</option><option>加餐</option>
-            </select>
-            <input id="d-foods" class="field" placeholder="吃了什么，用逗号分隔，如 鸡蛋,牛奶" />
-            <input id="d-note" class="field" placeholder="备注（可选）" />
-            <input id="d-date" class="field" type="date" />
+            </select></label>
+            <label class="compact-field"><span>吃了什么</span><input id="d-foods" class="field" placeholder="用逗号分隔，如鸡蛋、牛奶" /></label>
+            <label class="compact-field"><span>备注（可选）</span><input id="d-note" class="field" placeholder="如少油" /></label>
+            <label class="compact-field"><span>日期</span><input id="d-date" class="field" type="date" /></label>
             <button id="d-add" class="primary-btn" type="submit">记录</button>
           </form>
           <div id="diet-summary" class="diet-summary hidden">
@@ -300,6 +309,7 @@
               <div id="diet-meal-bars" class="diet-meal-bars"></div>
               <div id="diet-macros" class="diet-macros"></div>
               <div id="diet-trend" class="diet-trend" role="img" aria-label="近 7 天热量趋势"></div>
+              <p id="diet-summary-text" class="chart-summary" aria-live="polite"></p>
             </div>
           </div>
           <div id="diet-list" class="list"></div>
@@ -316,8 +326,8 @@
             <button id="tutorial-new-btn" class="secondary-btn tutorial-new-btn" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#i-pencil"/></svg> 自己写一个</button>
           </div>
           <form id="tutorial-form" class="form-row tutorial-form">
-            <input id="t-dish" class="field" placeholder="让 AI 教你做一道菜，如 可乐鸡翅" maxlength="60" />
-            <input id="t-servings" class="field" type="number" min="1" max="20" placeholder="几人份（可选）" />
+            <label class="compact-field"><span>想学的菜</span><input id="t-dish" class="field" placeholder="如可乐鸡翅" maxlength="60" /></label>
+            <label class="compact-field"><span>几人份（可选）</span><input id="t-servings" class="field" type="number" min="1" max="20" inputmode="numeric" placeholder="如2" /></label>
             <button id="t-generate" class="primary-btn" type="submit" disabled>生成教学</button>
           </form>
           <p class="tutorial-consent" id="tutorial-consent-status">AI 数据授权状态读取中…</p>
@@ -342,7 +352,7 @@
       <section id="profile" class="view hidden" role="tabpanel" aria-labelledby="tab-profile">
         <div class="page">
           <h2>健康档案</h2>
-          <p class="page-desc">记录你的身体状况与偏好；只在你主动发起推荐或分析时，AI 才会读取这里的数据。</p>
+          <p class="page-desc">记录你的身体状况与偏好；只有在你主动发起需要这些信息的聊天、推荐或分析时，AI 才会按需读取。</p>
           <form id="profile-form">
           <div class="form-grid">
             <label class="form-field"><span>身高（cm）</span><input id="p-height" class="field" type="number" placeholder="如 175" /></label>
@@ -364,11 +374,12 @@
             <h3>每日记录</h3>
             <p class="page-desc">记录每天的体重与体脂；发起健康分析时 AI 会读取这些数据。</p>
             <form class="form-row" id="weight-form">
-              <input id="p-weight" class="field" type="number" step="0.1" min="20" max="500" placeholder="今天体重(kg)" />
-              <input id="p-bodyfat" class="field" type="number" step="0.1" min="3" max="60" placeholder="体脂%(可选)" />
+              <label class="compact-field"><span>体重（kg）</span><input id="p-weight" class="field" type="number" step="0.1" min="20" max="500" inputmode="decimal" placeholder="如65.5" /></label>
+              <label class="compact-field"><span>体脂（% 可选）</span><input id="p-bodyfat" class="field" type="number" step="0.1" min="3" max="60" inputmode="decimal" placeholder="如20" /></label>
               <button id="p-weight-add" class="primary-btn" type="submit">记录体重</button>
             </form>
             <div id="weight-chart" class="weight-chart" role="img" aria-label="体重趋势图"></div>
+            <p id="weight-chart-summary" class="chart-summary" aria-live="polite"></p>
             <div id="profile-daily" class="list"></div>
           </div>
         </div>
@@ -411,9 +422,53 @@
               </div>
             </section>
           </div>
-          <div class="today-metrics" id="today-metrics" aria-live="polite"></div>
+          <section class="today-pulse" id="today-metrics" aria-labelledby="today-pulse-title" aria-live="polite">
+            <div class="today-pulse-overview">
+              <div class="today-pulse-ring-wrap">
+                <svg id="today-coverage-ring" class="today-coverage-ring" viewBox="0 0 180 180" role="img" aria-labelledby="today-ring-title today-ring-desc">
+                  <title id="today-ring-title">今日记录覆盖度</title>
+                  <desc id="today-ring-desc">正在等待今日数据</desc>
+                  <circle class="today-ring-track" cx="90" cy="90" r="64" />
+                  <circle class="today-ring-segment today-ring-diet" data-coverage-key="diet" cx="90" cy="90" r="64" transform="rotate(-90 90 90)" />
+                  <circle class="today-ring-segment today-ring-fitness" data-coverage-key="fitness" cx="90" cy="90" r="64" transform="rotate(0 90 90)" />
+                  <circle class="today-ring-segment today-ring-habit" data-coverage-key="habit" cx="90" cy="90" r="64" transform="rotate(90 90 90)" />
+                  <circle class="today-ring-segment today-ring-weight" data-coverage-key="weight" cx="90" cy="90" r="64" transform="rotate(180 90 90)" />
+                </svg>
+                <div class="today-pulse-ring-center" aria-hidden="true"><strong id="today-coverage-value">—</strong><span id="today-coverage-label">今日记录</span></div>
+              </div>
+              <div class="today-pulse-overview-copy">
+                <span class="today-panel-kicker">TODAY PULSE</span>
+                <h3 id="today-pulse-title">今天照顾了几件事</h3>
+                <p id="today-coverage-summary">先记下一件小事，环形会随着你的记录慢慢亮起来。</p>
+                <ul class="today-coverage-legend" aria-label="今日记录分类">
+                  <li data-coverage-key="diet"><i aria-hidden="true"></i><span>饮食</span><b>未记录</b></li>
+                  <li data-coverage-key="fitness"><i aria-hidden="true"></i><span>训练</span><b>未记录</b></li>
+                  <li data-coverage-key="habit"><i aria-hidden="true"></i><span>习惯</span><b>未记录</b></li>
+                  <li data-coverage-key="weight"><i aria-hidden="true"></i><span>体重</span><b>未记录</b></li>
+                </ul>
+              </div>
+            </div>
+            <div class="today-stat-list" aria-label="今日数据">
+              <div class="today-stat" data-stat="diet">
+                <span class="today-stat-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-tools-kitchen" /></svg></span>
+                <span class="today-stat-copy"><span class="today-stat-label">饮食热量</span><strong id="today-diet-value">—</strong><small id="today-diet-note">等待记录</small></span>
+              </div>
+              <div class="today-stat" data-stat="fitness">
+                <span class="today-stat-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-barbell" /></svg></span>
+                <span class="today-stat-copy"><span class="today-stat-label">训练时长</span><strong id="today-fitness-value">—</strong><small id="today-fitness-note">等待记录</small></span>
+              </div>
+              <div class="today-stat" data-stat="habit">
+                <span class="today-stat-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-heart" /></svg></span>
+                <span class="today-stat-copy"><span class="today-stat-label">习惯完成</span><strong id="today-habit-value">—</strong><small id="today-habit-note">等待记录</small></span>
+              </div>
+              <div class="today-stat" data-stat="weight">
+                <span class="today-stat-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-scale" /></svg></span>
+                <span class="today-stat-copy"><span class="today-stat-label">最新体重</span><strong id="today-weight-value">—</strong><small id="today-weight-note">等待记录</small></span>
+              </div>
+            </div>
+          </section>
           <div class="today-grid">
-            <section class="today-panel today-quick-panel">
+            <section class="today-panel today-quick-panel today-open-panel">
               <div class="today-panel-head"><div><span class="today-panel-kicker">START HERE</span><h3>快速记录</h3><p>复用现有表单，不重复填写。</p></div><span class="today-panel-mark" aria-hidden="true"><svg class="ui-icon"><use href="#i-pencil" /></svg></span></div>
               <div class="today-quick-actions">
                 <button type="button" data-quick-record="diet"><span class="today-quick-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-tools-kitchen" /></svg></span><span class="today-quick-copy"><strong>饮食</strong><small>记下一餐</small></span><span class="today-quick-arrow" aria-hidden="true">↗</span></button>
@@ -422,15 +477,15 @@
                 <button type="button" data-quick-record="habit"><span class="today-quick-icon"><svg class="ui-icon" aria-hidden="true"><use href="#i-heart" /></svg></span><span class="today-quick-copy"><strong>习惯</strong><small>完成一次打卡</small></span><span class="today-quick-arrow" aria-hidden="true">↗</span></button>
               </div>
             </section>
-            <section class="today-panel">
+            <section class="today-panel today-open-panel today-next-panel">
               <div class="today-panel-head"><div><span class="today-panel-kicker">NEXT BEST STEP</span><h3>下一步行动</h3><p>从最值得处理的一件开始。</p></div><span class="today-panel-mark" aria-hidden="true"><svg class="ui-icon"><use href="#i-flame" /></svg></span></div>
-              <div id="today-next-actions" class="today-action-list"></div>
+              <div id="today-next-actions" class="today-action-list" aria-live="polite"></div>
             </section>
           </div>
           <div class="today-grid today-grid-bottom">
-            <section class="today-panel">
+            <section class="today-panel today-open-panel today-activity-panel">
               <div class="today-panel-head"><div><span class="today-panel-kicker">A LITTLE LOG</span><h3>最近记录</h3></div><span class="today-panel-mark" aria-hidden="true"><svg class="ui-icon"><use href="#i-hourglass" /></svg></span></div>
-              <div id="today-activity" class="today-activity-list"></div>
+              <div id="today-activity" class="today-activity-list" aria-live="polite"></div>
             </section>
           </div>
           <button id="organize-board-btn" class="today-board-link secondary-btn" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#i-note" /></svg><span>整理看板</span><span aria-hidden="true">→</span></button>
@@ -502,7 +557,9 @@
       <div data-settings-panel="model" role="tabpanel" aria-label="模型设置">
       <section id="ai-consent-settings" class="ai-consent-settings" aria-labelledby="ai-consent-title">
         <div class="settings-section-head"><div><h3 id="ai-consent-title">AI 数据授权</h3><p>控制“携带你的内容发送给模型”的权限。撤销后，所有模型入口立即停止；固定连接测试不受影响。</p></div><span id="ai-consent-state" class="consent-state">读取中…</span></div>
-        <p id="ai-consent-detail" class="field-hint consent-detail"></p><div class="consent-actions"><button id="ai-consent-grant" class="primary-btn" type="button">授权 AI 使用我的内容</button><button id="ai-consent-revoke" class="secondary-btn" type="button">撤销授权</button></div>
+        <p id="ai-consent-detail" class="field-hint consent-detail"></p>
+        <div id="ai-policy-list" class="ai-policy-list" aria-label="AI 数据使用范围"></div>
+        <div class="consent-actions"><button id="ai-consent-grant" class="primary-btn" type="button">授权 AI 使用我的内容</button><button id="ai-consent-revoke" class="secondary-btn" type="button">撤销授权</button></div>
       </section>
       <label class="field-label">界面主题</label>
       <select id="theme-select" class="field">
